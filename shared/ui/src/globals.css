@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+/* Vera design tokens — warm fintech, soft and personal. */
+@theme {
+  /* surfaces */
+  --color-bg-base: #f5efe6;
+  --color-bg-card: #fffcf7;
+  --color-bg-elevated: #ffffff;
+
+  /* text */
+  --color-text-primary: #1f1b16;
+  --color-text-secondary: #6e6258;
+  --color-text-muted: #9c8e80;
+
+  /* lines */
+  --color-border: #e8decf;
+
+  /* accents */
+  --color-accent: #c8854e;
+  --color-accent-soft: #e8c5a0;
+  --color-success: #7a8f6f;
+
+  /* heat bands */
+  --color-heat-cool: #7a8f6f;
+  --color-heat-warm: #c9a05f;
+  --color-heat-hot: #c8714c;
+  --color-heat-critical: #a14535;
+
+  /* fonts */
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* radii */
+  --radius-card: 1.25rem;
+  --radius-input: 0.75rem;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  body {
+    background-color: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-feature-settings: 'opsz';
+    letter-spacing: -0.01em;
+  }
+}

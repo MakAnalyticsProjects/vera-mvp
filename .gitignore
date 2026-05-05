@@ -1,0 +1,27 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# build
+.next
+.turbo
+dist
+out
+*.tsbuildinfo
+
+# data
+data/jobs_dedup.jsonl
+data/generated.json
+
+# env
+.env
+.env.local
+.env.*.local
+
+# misc
+.DS_Store
+*.log
+.vercel
+playwright-report
+test-results
+coverage
