@@ -70,23 +70,31 @@ export default function DashboardOverview() {
       </section>
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4 vera-rise-delay-1">
-        <MetricTile label="Total AR" value={formatUSD(totalAR)} hint={`${jobs.length} jobs`} />
+        <MetricTile
+          label="Total AR"
+          value={formatUSD(totalAR)}
+          hint={`${jobs.length} jobs`}
+          tooltip={`Total outstanding balance across the ${jobs.length} jobs that are installed and still owe money. Pre-install jobs and jobs marked exclude_from_qb are excluded.`}
+        />
         <MetricTile
           label="Critical"
           value={critical.length}
           hint="Executive review queue"
           emphasis="critical"
+          tooltip="Heat 76+. These auto-flow to the Executive Review Queue — too far gone for a rep nudge, needs a personal touch from the office."
         />
         <MetricTile
           label="Hot"
           value={hot.length}
           hint="Vera will draft today"
           emphasis="accent"
+          tooltip="Heat 51–75. Vera will draft a follow-up email to the rep today. The rep chases the customer; you stay out of it."
         />
         <MetricTile
           label="Fell through"
           value={fellThrough.length}
           hint={`${repsWithHeat} reps with heat`}
+          tooltip="Completed installs with no recent activity — no paperwork, no commission request, no edits in the last 14 days. The 'forgotten' jobs that quietly leak revenue. Updated weekly."
         />
       </section>
 

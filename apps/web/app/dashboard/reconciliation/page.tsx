@@ -41,10 +41,23 @@ export default function ReconciliationPage() {
           label="Stuck jobs"
           value={fellThrough.length}
           emphasis={fellThrough.length > 0 ? 'critical' : 'default'}
+          tooltip="Completed installs with zero signs of life — no insurance check endorsed in 30 days, no certificate of completion, no commission request, and no record edits in the last 14 days. These have been forgotten."
         />
-        <MetricTile label="Locked up" value={formatUSD(totalStuck)} />
-        <MetricTile label="Reps affected" value={distinctReps} />
-        <MetricTile label="Oldest install" value={oldest > 0 ? `${oldest} days` : '—'} />
+        <MetricTile
+          label="Locked up"
+          value={formatUSD(totalStuck)}
+          tooltip="Total dollars sitting in stuck jobs. This is revenue that's likely already worked (materials + labor + commission paid out), but no one is actively trying to collect it."
+        />
+        <MetricTile
+          label="Reps affected"
+          value={distinctReps}
+          tooltip="Number of distinct reps with at least one stuck job. If this number is large relative to the rep count, the leak is systemic; if small, it's concentrated in a few reps."
+        />
+        <MetricTile
+          label="Oldest install"
+          value={oldest > 0 ? `${oldest} days` : '—'}
+          tooltip="Days since the oldest stuck install. The longer this number, the harder the recovery — past 12 months, recovery rates drop sharply."
+        />
       </section>
 
       <section className="space-y-3 vera-rise-delay-2">

@@ -1,19 +1,29 @@
 import * as React from 'react';
 import { cn } from '../lib/cn';
+import { Tooltip } from './Tooltip';
 
 export interface MetricTileProps {
   label: string;
   value: React.ReactNode;
   hint?: string;
+  tooltip?: string;
   className?: string;
   emphasis?: 'default' | 'accent' | 'critical';
 }
 
-export function MetricTile({ label, value, hint, className, emphasis = 'default' }: MetricTileProps) {
-  return (
+export function MetricTile({
+  label,
+  value,
+  hint,
+  tooltip,
+  className,
+  emphasis = 'default',
+}: MetricTileProps) {
+  const inner = (
     <div
       className={cn(
         'bg-bg-card border-border rounded-[var(--radius-card)] border p-8',
+        tooltip && 'cursor-help',
         className,
       )}
     >
@@ -30,4 +40,14 @@ export function MetricTile({ label, value, hint, className, emphasis = 'default'
       {hint ? <p className="text-text-secondary mt-3 text-sm">{hint}</p> : null}
     </div>
   );
+
+  if (tooltip) {
+    return (
+      <Tooltip content={tooltip} block>
+        {inner}
+      </Tooltip>
+    );
+  }
+
+  return inner;
 }

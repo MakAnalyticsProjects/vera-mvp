@@ -236,6 +236,17 @@ export default async function AgingPage({
   );
 }
 
+const BUCKET_TOOLTIPS: Record<AgingBucket, string> = {
+  'within-terms':
+    "Jobs where the customer's payment clock hasn't run out yet. Net 30 for retail, Net 60 for insurance, measured from install date. Click to filter the table to just these.",
+  '1-30-past':
+    'Jobs that are 1–30 days past their payment terms. First nudge territory. Click to filter the table.',
+  '31-60-past':
+    'Jobs that are 31–60 days past terms. Escalation territory — these are starting to feel stuck. Click to filter the table.',
+  '60-plus-past':
+    'Jobs more than 60 days past terms. Likely needs executive intervention. Click to filter the table.',
+};
+
 function BucketTile({
   label,
   count,
@@ -261,13 +272,13 @@ function BucketTile({
           ? 'ring-accent block rounded-[var(--radius-card)] ring-2 transition-all'
           : 'hover:ring-accent/30 block rounded-[var(--radius-card)] ring-1 ring-transparent transition-all'
       }
-      title={`${label}: ${count} jobs · ${formatUSD(total)}`}
     >
       <MetricTile
         label={label}
         value={count}
         hint={formatUSD(total)}
         emphasis={emphasis}
+        tooltip={BUCKET_TOOLTIPS[bucket]}
       />
     </Link>
   );

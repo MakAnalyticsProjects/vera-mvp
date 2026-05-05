@@ -42,19 +42,27 @@ export default function MilestonesPage() {
           value={noCert}
           hint="Blocks the final check"
           emphasis={noCert > 0 ? 'critical' : 'default'}
+          tooltip="Jobs where the install is done but no Certificate of Completion has been logged after 14 days. For insurance jobs, the insurer needs this document before they release the final/depreciation check — so the money can't physically arrive without it."
         />
         <MetricTile
           label="Insurance — final check open"
           value={noFinalCheck}
           hint="Depreciation outstanding"
           emphasis="accent"
+          tooltip="Insurance jobs where the final (depreciation/RCV) check hasn't been endorsed yet. This is the larger of the two insurance payments and typically arrives 30–90 days post-install."
         />
         <MetricTile
           label="No commission requested"
           value={noCommission}
           hint="A behavioral tell from the rep"
+          tooltip="Jobs where the rep hasn't requested commission after 14 days post-install. Reps reliably ask for commission when they think a job will collect — its absence is often a tell that something is wrong (customer dispute, collection problem, etc.)."
         />
-        <MetricTile label="Paperwork current" value={allClear} hint="Nothing to chase" />
+        <MetricTile
+          label="Paperwork current"
+          value={allClear}
+          hint="Nothing to chase"
+          tooltip="Jobs with all three milestones logged: certificate of completion, final check (insurance only), and commission request. These are paperwork-clean — Vera has nothing to chase here."
+        />
       </section>
 
       <section className="space-y-3 vera-rise-delay-2">

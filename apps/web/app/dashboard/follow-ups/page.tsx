@@ -48,17 +48,24 @@ export default async function FollowUpsPage({
           value={hot.length}
           hint="Heat 51–75"
           emphasis="accent"
+          tooltip="Jobs in the Hot heat band (51–75). Vera will draft a follow-up email to the rep — the rep chases the homeowner / insurance company. You stay out of it."
         />
         <MetricTile
           label="Critical — exec review"
           value={critical.length}
           hint="Heat 76+"
           emphasis="critical"
+          tooltip="Jobs in the Critical heat band (76+). Too far gone for a rep nudge — needs a personal touch from the office. Maybe call the homeowner directly, write off, or use as a learning moment for the rep."
         />
-        <MetricTile label="Total in heat" value={hot.length + critical.length} />
+        <MetricTile
+          label="Total in heat"
+          value={hot.length + critical.length}
+          tooltip="Sum of Hot and Critical jobs. Cool (0–25) and Warm (26–50) jobs are visible elsewhere on the dashboard but don't get follow-up emails today."
+        />
         <MetricTile
           label="Total dollars in heat"
           value={formatUSD([...hot, ...critical].reduce((s, j) => s + j.balance, 0))}
+          tooltip="Sum of outstanding balances across all Hot and Critical jobs combined. The dollar exposure on jobs that need active follow-up today."
         />
       </section>
 

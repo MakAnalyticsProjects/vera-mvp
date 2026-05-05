@@ -90,12 +90,25 @@ export default async function RepReportPage({
       </header>
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4 vera-rise-delay-1">
-        <MetricTile label="Reps with AR" value={sorted.length} />
-        <MetricTile label="Total outstanding" value={formatUSD(totalAR)} />
-        <MetricTile label="Worst single rep" value={top ? formatUSD(top.totalOutstanding) : '—'} />
+        <MetricTile
+          label="Reps with AR"
+          value={sorted.length}
+          tooltip="Number of distinct reps who own at least one job in the AR working set. If you've filtered by region or job type, this counts only reps with jobs matching the filter."
+        />
+        <MetricTile
+          label="Total outstanding"
+          value={formatUSD(totalAR)}
+          tooltip="Sum of outstanding balances across all reps. Equals 'Total AR' on the dashboard when no filters are applied."
+        />
+        <MetricTile
+          label="Worst single rep"
+          value={top ? formatUSD(top.totalOutstanding) : '—'}
+          tooltip="The largest single-rep outstanding balance. The rep at the top of the leaderboard."
+        />
         <MetricTile
           label="Average per rep"
           value={sorted.length > 0 ? formatUSD(totalAR / sorted.length) : '—'}
+          tooltip="Total outstanding divided by the number of reps with AR. Useful as a baseline — reps significantly above this number stand out."
         />
       </section>
 
