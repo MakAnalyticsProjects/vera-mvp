@@ -26,3 +26,4 @@ apps/web/data/generated.json
 playwright-report
 test-results
 coverage
+tests/e2e/audit-screens
