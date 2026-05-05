@@ -12,7 +12,9 @@ out
 # data
 data/jobs_dedup.jsonl
 data/generated.json
-apps/web/data/generated.json
+# apps/web/data/generated.json is COMMITTED — Vercel reads it directly during
+# build instead of running the 188 MB preprocess step. Re-run `pnpm preprocess`
+# locally and commit the updated JSON when the source data changes.
 
 # env
 .env
