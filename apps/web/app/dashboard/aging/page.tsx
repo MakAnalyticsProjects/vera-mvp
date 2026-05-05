@@ -84,7 +84,7 @@ export default async function AgingPage({
           {bucketSummary['60-plus-past'].count > 0
             ? `${bucketSummary['60-plus-past'].count} ${
                 bucketSummary['60-plus-past'].count === 1 ? 'job is' : 'jobs are'
-              } more than 60 days past their terms — that's where I&apos;d focus first. Total past terms: ${formatUSD(totalOver)}.`
+              } more than 60 days past their terms — that's where I'd focus first. Total past terms: ${formatUSD(totalOver)}.`
             : "Nothing's deeply overdue today. The buckets below show where things stand relative to each customer's terms."}
         </VeraQuote>
       </header>

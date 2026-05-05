@@ -130,7 +130,7 @@ function composeNarrative({
   noFinalCheck: number;
 }): string {
   if (allClear === total) {
-    return 'Every AR job has its paperwork current today. That&apos;s a clean board.';
+    return "Every AR job has its paperwork current today. That's a clean board.";
   }
   const parts: string[] = [];
   if (noCert > 0) {

@@ -44,9 +44,9 @@ export default async function FollowUpsPage({
             ? `${critical.length} ${
                 critical.length === 1 ? 'job is' : 'jobs are'
               } in the executive review queue — these crossed Heat 76 and warrant a personal touch from the office.`
-            : `I&apos;ll draft for ${hot.length} hot ${
+            : `I'll draft for ${hot.length} hot ${
                 hot.length === 1 ? 'job' : 'jobs'
-              } today. Nothing autosends — open any row and I&apos;ll show you the email I&apos;d send.`}
+              } today. Nothing autosends — open any row and I'll show you the email I'd send.`}
         </VeraQuote>
       </header>
 

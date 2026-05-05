@@ -23,7 +23,7 @@ export default function ReconciliationPage() {
       ? "Nothing fell through this week. Every completed install has at least one fresh signal — paperwork, an endorsed check, a commission request, or a recent edit. I'll keep watching."
       : `${fellThrough.length} ${
           fellThrough.length === 1 ? 'install has' : 'installs have'
-        } gone quiet — no insurance check endorsement, no certificate of completion, no commission request, and no edits in the last two weeks. That&apos;s ${formatUSD(
+        } gone quiet — no insurance check endorsement, no certificate of completion, no commission request, and no edits in the last two weeks. That's ${formatUSD(
           totalStuck,
         )} sitting somewhere unattended, across ${distinctReps} ${
           distinctReps === 1 ? 'rep' : 'reps'

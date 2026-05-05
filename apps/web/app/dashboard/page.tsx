@@ -168,12 +168,12 @@ function composeBriefing({
   const opener =
     critical === 0
       ? 'Good morning. The critical queue is clear today, which is rare and worth noticing.'
-      : `Good morning. ${critical} ${critical === 1 ? 'job is' : 'jobs are'} in the critical band — the executive review queue is where I&apos;d start.`;
+      : `Good morning. ${critical} ${critical === 1 ? 'job is' : 'jobs are'} in the critical band — the executive review queue is where I'd start.`;
 
   const middle =
     hot === 0
       ? ''
-      : ` ${hot} more ${hot === 1 ? 'is' : 'are'} hot enough that I&apos;ll draft follow-ups for the reps today.`;
+      : ` ${hot} more ${hot === 1 ? 'is' : 'are'} hot enough that I'll draft follow-ups for the reps today.`;
 
   const top = topJob
     ? ` Right now ${topJob.address} is at the top of my list${
