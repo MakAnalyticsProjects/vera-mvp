@@ -9,6 +9,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { getData } from '@/lib/data';
+import { ChatPanel } from './_components/ChatPanel';
 
 const NAV = [
   { href: '/dashboard', label: 'Today', icon: Home },
@@ -51,10 +52,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             ))}
           </nav>
           <div className="border-border border-t px-6 py-5">
-            <div className="text-text-muted flex items-center gap-2 text-xs">
+            <p className="text-text-muted flex items-center gap-2 text-xs">
               <MessageCircle className="h-3 w-3" />
-              <span>Chat with Vera (Phase 7)</span>
-            </div>
+              <span>Chat opens bottom-right →</span>
+            </p>
           </div>
         </aside>
 
@@ -74,6 +75,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="px-8 py-10">{children}</div>
         </div>
       </div>
+      <ChatPanel />
     </div>
   );
 }
