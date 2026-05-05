@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import {
   AgingChip,
   AnomalyTag,
@@ -8,39 +11,55 @@ import {
   TableHead,
   TableRow,
   TableShell,
+  Tooltip,
 } from '@vera/ui';
 import { formatUSD } from '@vera/utils';
-import type { ARJob } from '@vera/types';
+import type { ARJob, AnomalyFlag } from '@vera/types';
+import { JobDetailSheet } from '../_components/JobDetailSheet';
+
+const ANOMALY_LABELS: Record<AnomalyFlag, string> = {
+  'balance-exceeds-price': 'Balance exceeds price',
+  'no-cert-of-completion': 'No cert of completion',
+  'insurance-final-check-stuck': 'Insurance final check stuck',
+  'retail-no-payment': 'Retail — no payments',
+  'duplicate-address': 'Duplicate address',
+  'no-commission-request': 'No commission request',
+  'impossible-payments': 'Impossible payments',
+  'archived-with-balance': 'Archived but owing',
+  'warranty-voided-with-balance': 'Warranty voided',
+};
 
 const COLUMNS = [
   { key: 'job', label: 'Job', tooltip: 'Address and job classification.' },
-  { key: 'rep', label: 'Rep', tooltip: 'Sales rep responsible for the install.', width: '160px' },
+  { key: 'rep', label: 'Rep', width: '160px', tooltip: 'Sales rep responsible for the install.' },
   {
     key: 'balance',
     label: 'Balance',
     align: 'right' as const,
-    tooltip: 'Outstanding amount on the primary estimate.',
     width: '120px',
+    tooltip: 'Outstanding amount on the primary estimate.',
   },
-  { key: 'aging', label: 'Aging', tooltip: 'Bucket relative to terms.', width: '120px' },
+  { key: 'aging', label: 'Aging', width: '120px', tooltip: 'Bucket relative to terms.' },
   {
     key: 'days',
     label: 'Days past',
     align: 'right' as const,
-    tooltip: 'Days past the agreed terms (Net 30 retail, Net 60 insurance).',
     width: '90px',
+    tooltip: 'Days past the agreed terms (Net 30 retail, Net 60 insurance).',
   },
   {
     key: 'heat',
     label: 'Heat',
     align: 'right' as const,
+    width: '220px',
     tooltip:
       'Composite 0–100 score: 40% days past terms · 25% balance · 20% rep silence · 15% anomalies.',
-    width: '220px',
   },
 ];
 
 export function AgingTable({ jobs }: { jobs: ARJob[] }) {
+  const [selected, setSelected] = useState<ARJob | null>(null);
+
   if (jobs.length === 0) {
     return (
       <Card>
@@ -52,63 +71,94 @@ export function AgingTable({ jobs }: { jobs: ARJob[] }) {
   }
 
   return (
-    <TableShell maxHeight={640}>
-      <Table>
-        <TableHead columns={COLUMNS} />
-        <tbody>
-          {jobs.map((job) => (
-            <TableRow key={job.id}>
-              <TableCell>
-                <p className="text-text-primary font-medium">{job.address}</p>
-                <p className="text-text-muted mt-0.5 text-xs">
-                  {job.region ?? '—'} · {job.isInsurance ? 'Insurance' : 'Retail'}
-                </p>
-                {job.anomalies.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {job.anomalies.slice(0, 2).map((flag) => (
-                      <AnomalyTag key={flag} flag={flag} />
-                    ))}
-                    {job.anomalies.length > 2 ? (
-                      <span
-                        title={`${job.anomalies.length - 2} more anomalies on this job`}
-                        className="text-text-muted inline-flex items-center rounded-full px-2 text-xs"
-                      >
-                        +{job.anomalies.length - 2}
-                      </span>
-                    ) : null}
+    <>
+      <TableShell maxHeight={640}>
+        <Table>
+          <TableHead columns={COLUMNS} />
+          <tbody>
+            {jobs.map((job) => (
+              <TableRow
+                key={job.id}
+                onClick={() => setSelected(job)}
+                className="cursor-pointer"
+              >
+                <TableCell>
+                  <p className="text-text-primary font-medium">{job.address}</p>
+                  <p className="text-text-muted mt-0.5 text-xs">
+                    {job.region ?? '—'} · {job.isInsurance ? 'Insurance' : 'Retail'}
+                  </p>
+                  {job.anomalies.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {job.anomalies.slice(0, 2).map((flag) => (
+                        <AnomalyTag key={flag} flag={flag} />
+                      ))}
+                      {job.anomalies.length > 2 ? (
+                        <Tooltip
+                          content={
+                            <span className="block">
+                              <span className="block font-semibold">
+                                Also flagged on this job:
+                              </span>
+                              <span className="mt-1 block">
+                                {job.anomalies.slice(2).map((flag) => (
+                                  <span key={flag} className="mt-0.5 block">
+                                    · {ANOMALY_LABELS[flag]}
+                                  </span>
+                                ))}
+                              </span>
+                            </span>
+                          }
+                        >
+                          <span
+                            onClick={(e) => e.stopPropagation()}
+                            className="border-border bg-bg-base text-text-secondary inline-flex cursor-help items-center rounded-full border px-2.5 py-1 text-xs leading-none whitespace-nowrap"
+                          >
+                            +{job.anomalies.length - 2} more
+                          </span>
+                        </Tooltip>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </TableCell>
+                <TableCell className="text-text-secondary">
+                  {job.rep?.name ?? 'Unassigned'}
+                </TableCell>
+                <TableCell align="right" className="tabular-nums">
+                  {formatUSD(job.balance)}
+                </TableCell>
+                <TableCell>
+                  <AgingChip bucket={job.agingBucket} />
+                </TableCell>
+                <TableCell align="right" className="tabular-nums">
+                  {job.daysPastTerms === 0 ? (
+                    <span className="text-text-muted">—</span>
+                  ) : (
+                    job.daysPastTerms
+                  )}
+                </TableCell>
+                <TableCell align="right">
+                  <div className="flex justify-end">
+                    <HeatMeter
+                      score={job.heatScore}
+                      band={job.heatBand}
+                      breakdown={job.heatBreakdown}
+                      variant="compact"
+                    />
                   </div>
-                ) : null}
-              </TableCell>
-              <TableCell className="text-text-secondary">
-                {job.rep?.name ?? 'Unassigned'}
-              </TableCell>
-              <TableCell align="right" className="tabular-nums">
-                {formatUSD(job.balance)}
-              </TableCell>
-              <TableCell>
-                <AgingChip bucket={job.agingBucket} />
-              </TableCell>
-              <TableCell align="right" className="tabular-nums">
-                {job.daysPastTerms === 0 ? (
-                  <span className="text-text-muted">—</span>
-                ) : (
-                  job.daysPastTerms
-                )}
-              </TableCell>
-              <TableCell align="right">
-                <div className="flex justify-end">
-                  <HeatMeter
-                    score={job.heatScore}
-                    band={job.heatBand}
-                    breakdown={job.heatBreakdown}
-                    variant="compact"
-                  />
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </tbody>
-      </Table>
-    </TableShell>
+                </TableCell>
+              </TableRow>
+            ))}
+          </tbody>
+        </Table>
+      </TableShell>
+
+      <JobDetailSheet
+        job={selected}
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+      />
+    </>
   );
 }

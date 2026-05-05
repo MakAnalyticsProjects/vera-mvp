@@ -1,9 +1,11 @@
 import { cn } from '../lib/cn';
+import { Tooltip } from './Tooltip';
 
 export interface DonutDatum {
   label: string;
   value: number;
   color: string;
+  tooltip?: string;
 }
 
 export interface DonutChartProps {
@@ -104,26 +106,35 @@ export function DonutChart({
       </div>
 
       <ul className="w-full space-y-2.5 text-sm sm:w-auto sm:min-w-[240px]">
-        {slices.map((s) => (
-          <li
-            key={s.label}
-            className="flex items-baseline justify-between gap-3"
-            title={`${s.label}: ${fmt(s.value)} (${s.pct}%)`}
-          >
-            <span className="flex items-center gap-2">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: s.color }}
-                aria-hidden="true"
-              />
-              <span className="text-text-secondary">{s.label}</span>
+        {slices.map((s) => {
+          const row = (
+            <span className="flex w-full items-baseline justify-between gap-3">
+              <span className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: s.color }}
+                  aria-hidden="true"
+                />
+                <span className="text-text-secondary">{s.label}</span>
+              </span>
+              <span className="text-text-primary tabular-nums">
+                <span className="font-medium">{fmt(s.value)}</span>
+                <span className="text-text-muted ml-2">{s.pct}%</span>
+              </span>
             </span>
-            <span className="text-text-primary tabular-nums">
-              <span className="font-medium">{fmt(s.value)}</span>
-              <span className="text-text-muted ml-2">{s.pct}%</span>
-            </span>
-          </li>
-        ))}
+          );
+          return (
+            <li key={s.label}>
+              {s.tooltip ? (
+                <Tooltip content={s.tooltip} block>
+                  <span className="block cursor-help">{row}</span>
+                </Tooltip>
+              ) : (
+                row
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

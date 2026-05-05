@@ -1,11 +1,17 @@
 @import 'tailwindcss';
 
+/* Tell Tailwind to also scan the shared UI workspace so utility classes
+   used only in @vera/ui (Card, Button, HeatMeter, etc.) are generated. */
+@source "../../../shared/ui/src/**/*.{ts,tsx}";
+@source "../../../shared/types/src/**/*.{ts,tsx}";
+
 /* Vera design tokens — warm fintech, soft and personal. */
 @theme {
   /* surfaces */
   --color-bg-base: #f5efe6;
   --color-bg-card: #fffcf7;
   --color-bg-elevated: #ffffff;
+  --color-bg-subtle: #ece4d3;
 
   /* text */
   --color-text-primary: #1f1b16;

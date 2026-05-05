@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { cn } from '../lib/cn';
+import { Tooltip } from './Tooltip';
 
 /**
  * Vera table — opinionated wrapper that gives every table the same
@@ -45,22 +46,28 @@ export interface TableHeadCol {
 
 export function TableHead({ columns }: { columns: TableHeadCol[] }) {
   return (
-    <thead className="bg-bg-base sticky top-0 z-10 shadow-[0_1px_0_0_var(--color-border),0_2px_8px_-4px_rgba(31,27,22,0.08)]">
+    <thead className="bg-bg-subtle sticky top-0 z-10 shadow-[0_1px_0_0_var(--color-border),0_2px_8px_-4px_rgba(31,27,22,0.08)]">
       <tr>
         {columns.map((c) => (
           <th
             key={c.key}
-            title={c.tooltip}
             className={cn(
               'text-text-secondary px-5 py-4 text-[0.65rem] font-semibold tracking-[0.15em] uppercase',
-              c.tooltip && 'cursor-help',
               c.align === 'right' && 'text-right',
               c.align === 'center' && 'text-center',
               !c.align && 'text-left',
             )}
             style={c.width ? { width: c.width } : undefined}
           >
-            {c.label}
+            {c.tooltip ? (
+              <Tooltip content={c.tooltip} side="bottom">
+                <span className="cursor-help border-b border-dotted border-current/40 pb-0.5">
+                  {c.label}
+                </span>
+              </Tooltip>
+            ) : (
+              c.label
+            )}
           </th>
         ))}
       </tr>

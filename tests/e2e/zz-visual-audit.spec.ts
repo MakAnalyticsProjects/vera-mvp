@@ -70,7 +70,7 @@ test('chat panel audit', async ({ page }) => {
 
   // Wait for chat panel to be visible
   await expect(
-    page.getByRole('complementary', { name: /Chat with Vera/i }),
+    page.getByRole('dialog', { name: /Chat with Vera/i }),
   ).toBeVisible();
 
   await page.screenshot({

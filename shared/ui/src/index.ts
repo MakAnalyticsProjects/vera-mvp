@@ -12,3 +12,4 @@ export * from './components/BarChart';
 export * from './components/DonutChart';
 export * from './components/Table';
 export * from './components/Tooltip';
+export * from './components/Sheet';

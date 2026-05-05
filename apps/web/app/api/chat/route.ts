@@ -1,4 +1,4 @@
-import { anthropic } from '@ai-sdk/anthropic';
+import { openai } from '@ai-sdk/openai';
 import { convertToCoreMessages, streamText, tool } from 'ai';
 import { z } from 'zod';
 import { getData } from '@/lib/data';
@@ -35,10 +35,10 @@ FORMAT
 - One pithy summary line is often enough.`;
 
 export async function POST(req: Request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return new Response(
-      JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }),
+      JSON.stringify({ error: 'OPENAI_API_KEY not configured' }),
       { status: 500, headers: { 'content-type': 'application/json' } },
     );
   }
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   const messages = convertToCoreMessages(body.messages ?? []);
 
   const result = streamText({
-    model: anthropic('claude-sonnet-4-5'),
+    model: openai('gpt-4o-mini'),
     system: SYSTEM_PROMPT,
     messages,
     tools: {

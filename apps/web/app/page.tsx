@@ -147,6 +147,71 @@ export default function Landing() {
           </ol>
         </section>
 
+        {/* How heat works */}
+        <section className="mt-28">
+          <h2 className="text-text-secondary mb-8 text-sm tracking-[0.2em] uppercase">
+            How heat works
+          </h2>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_4fr]">
+            <div className="space-y-4">
+              <p className="font-display text-text-primary text-3xl leading-tight font-medium tracking-tight">
+                A 0–100 score on every AR job.
+              </p>
+              <p className="text-text-secondary leading-relaxed">
+                Every job earns a heat score from four ingredients I weigh:
+              </p>
+              <ul className="text-text-secondary space-y-2 text-sm leading-relaxed">
+                <li>
+                  <span className="text-text-primary font-medium">Days past terms</span> · 40%
+                  — capped at 60+ days
+                </li>
+                <li>
+                  <span className="text-text-primary font-medium">Balance size</span> · 25% —
+                  log-scaled so $1k feels different from $50k
+                </li>
+                <li>
+                  <span className="text-text-primary font-medium">Rep silence</span> · 20% —
+                  growing if no one has touched the record in 14+ days
+                </li>
+                <li>
+                  <span className="text-text-primary font-medium">Anomaly flags</span> · 15% —
+                  one anomaly is a hint, three is a pattern
+                </li>
+              </ul>
+              <p className="text-text-muted pt-2 text-sm">
+                Hover any heat meter on the dashboard to see the four numbers behind a job&apos;s score.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <HeatBandCard
+                band="Cool"
+                range="0–25"
+                meaning="On track. Fresh installs with paperwork moving. I won't bother you about these."
+                color="var(--color-heat-cool)"
+              />
+              <HeatBandCard
+                band="Warm"
+                range="26–50"
+                meaning="Visible but not nudged yet. The rep should know they exist; I'm keeping watch."
+                color="var(--color-heat-warm)"
+              />
+              <HeatBandCard
+                band="Hot"
+                range="51–75"
+                meaning="I'll draft a follow-up email for the rep today. Past terms + balance + something off."
+                color="var(--color-heat-hot)"
+              />
+              <HeatBandCard
+                band="Critical"
+                range="76+"
+                meaning="Auto-flows to the Executive Review Queue. Needs a personal touch, not just a rep nudge."
+                color="var(--color-heat-critical)"
+              />
+            </div>
+          </div>
+        </section>
+
         {/* Vera quote */}
         <section className="mt-24 vera-rise-delay-3">
           <VeraQuote>
@@ -213,6 +278,35 @@ function FeatureCard({
       </div>
       <h3 className="font-display mt-5 text-2xl font-medium tracking-tight">{title}</h3>
       <p className="text-text-secondary mt-3 flex-1 text-sm leading-relaxed">{body}</p>
+    </div>
+  );
+}
+
+function HeatBandCard({
+  band,
+  range,
+  meaning,
+  color,
+}: {
+  band: string;
+  range: string;
+  meaning: string;
+  color: string;
+}) {
+  return (
+    <div className="bg-bg-card border-border rounded-[var(--radius-card)] border p-5">
+      <div className="flex items-center gap-3">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: color }}
+          aria-hidden="true"
+        />
+        <p className="font-display text-text-primary text-lg font-medium tracking-tight">
+          {band}
+        </p>
+        <span className="text-text-muted ml-auto text-xs tabular-nums">{range}</span>
+      </div>
+      <p className="text-text-secondary mt-2 text-sm leading-relaxed">{meaning}</p>
     </div>
   );
 }

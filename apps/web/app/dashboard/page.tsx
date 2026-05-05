@@ -32,10 +32,34 @@ export default function DashboardOverview() {
   });
 
   const heatBands = [
-    { label: 'Cool', value: jobs.filter((j) => j.heatBand === 'cool').length, color: 'var(--color-heat-cool)' },
-    { label: 'Warm', value: jobs.filter((j) => j.heatBand === 'warm').length, color: 'var(--color-heat-warm)' },
-    { label: 'Hot', value: hot.length, color: 'var(--color-heat-hot)' },
-    { label: 'Critical', value: critical.length, color: 'var(--color-heat-critical)' },
+    {
+      label: 'Cool',
+      value: jobs.filter((j) => j.heatBand === 'cool').length,
+      color: 'var(--color-heat-cool)',
+      tooltip:
+        'Heat 0–25. On track. Recent installs, low balance relative to the customer\'s terms, no anomaly flags. No action needed.',
+    },
+    {
+      label: 'Warm',
+      value: jobs.filter((j) => j.heatBand === 'warm').length,
+      color: 'var(--color-heat-warm)',
+      tooltip:
+        "Heat 26–50. Visible on the dashboard but not nudged yet. The rep should be aware these exist; I'll watch them.",
+    },
+    {
+      label: 'Hot',
+      value: hot.length,
+      color: 'var(--color-heat-hot)',
+      tooltip:
+        "Heat 51–75. I'll draft a follow-up email for the rep today. Combination of past-terms days, balance size, rep silence, and anomalies has crossed into 'nudge' territory.",
+    },
+    {
+      label: 'Critical',
+      value: critical.length,
+      color: 'var(--color-heat-critical)',
+      tooltip:
+        'Heat 76+. These automatically flow to the Executive Review Queue — they need a personal touch from the office, not just a rep email.',
+    },
   ];
 
   return (
@@ -90,9 +114,17 @@ export default function DashboardOverview() {
       </section>
 
       <section className="space-y-4 vera-rise-delay-3">
-        <h2 className="text-text-secondary text-sm tracking-[0.2em] uppercase">
-          Top three I&apos;d look at first
-        </h2>
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-text-secondary text-sm tracking-[0.2em] uppercase">
+            Top three I&apos;d look at first
+          </h2>
+          <Link
+            href="/dashboard/follow-ups"
+            className="text-accent text-sm hover:underline"
+          >
+            See all follow-ups →
+          </Link>
+        </div>
         <div className="space-y-3">
           {topThree.map((job) => (
             <Card key={job.id} className="!py-5">
@@ -121,14 +153,6 @@ export default function DashboardOverview() {
               </div>
             </Card>
           ))}
-        </div>
-        <div className="pt-2 text-right">
-          <Link
-            href="/dashboard/follow-ups"
-            className="text-accent text-sm hover:underline"
-          >
-            See all follow-ups →
-          </Link>
         </div>
       </section>
     </div>

@@ -15,4 +15,13 @@ test.describe('Milestones report', () => {
     // The fixture has many jobs missing cert/final-check/commission tags.
     await expect(page.getByText(/missing:/i).first()).toBeVisible();
   });
+
+  test('clicking a row opens the JobDetailSheet', async ({ page }) => {
+    await page.goto('/dashboard/milestones');
+    await page.waitForTimeout(800);
+    await page.locator('table tbody tr').first().click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: /Install.+terms/i })).toBeVisible();
+  });
 });

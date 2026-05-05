@@ -1,10 +1,31 @@
 import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
-import { BarChart, Card, MetricTile, VeraQuote } from '@vera/ui';
+import { BarChart, Card, MetricTile, Tooltip, VeraQuote } from '@vera/ui';
 import { formatUSD } from '@vera/utils';
 import type { ARJob, AgingBucket, AnomalyFlag } from '@vera/types';
 import { getData } from '@/lib/data';
 import { AgingTable } from './AgingTable';
+
+const ANOMALY_TOOLTIPS: Record<AnomalyFlag, string> = {
+  'balance-exceeds-price':
+    'Outstanding balance is greater than the contract price — likely a data error or stale estimate.',
+  'no-cert-of-completion':
+    'Job is installed but no certificate of completion has been logged after 14 days. Insurance final checks rely on this.',
+  'insurance-final-check-stuck':
+    'Insurance job installed 60+ days ago without the final (depreciation) check endorsed.',
+  'retail-no-payment':
+    'Retail/cash job installed 30+ days ago with zero payments received.',
+  'duplicate-address':
+    'Multiple records exist at this address with overlapping dates. Could be a duplicate or warranty work.',
+  'no-commission-request':
+    "No commission request has been logged after 14 days post-install. Often a tell that the rep believes something is off.",
+  'impossible-payments':
+    'Payment values are inconsistent (negative or exceeding the contract price).',
+  'archived-with-balance':
+    'The estimate is archived but a balance is still showing — a zombie record.',
+  'warranty-voided-with-balance':
+    'Warranty has been voided yet balance remains owing — disputed work.',
+};
 
 const BUCKET_LABEL: Record<AgingBucket, string> = {
   'within-terms': 'Within terms',
@@ -150,27 +171,42 @@ export default async function AgingPage({
               I&apos;ll keep watching.
             </p>
           ) : (
-            <ul className="mt-6 space-y-2.5">
+            <ul className="mt-6 space-y-1">
               {anomalyEntries.map(([flag, list]) => (
                 <li
                   key={flag}
-                  title={`${ANOMALY_LABELS[flag as AnomalyFlag]} — ${list.length} ${
-                    list.length === 1 ? 'job' : 'jobs'
-                  }`}
-                  className="border-border/60 flex items-center justify-between gap-3 border-b pb-2.5 last:border-b-0 last:pb-0"
+                  className="border-border/60 border-b last:border-b-0"
                 >
-                  <span className="flex items-center gap-2.5 text-sm">
-                    <AlertTriangle
-                      className="text-heat-hot h-3.5 w-3.5 shrink-0"
-                      aria-hidden="true"
-                    />
-                    <span className="text-text-primary">
-                      {ANOMALY_LABELS[flag as AnomalyFlag]}
+                  <Tooltip
+                    content={
+                      <span className="block">
+                        <span className="block font-semibold">
+                          {ANOMALY_LABELS[flag as AnomalyFlag]} — {list.length}{' '}
+                          {list.length === 1 ? 'job' : 'jobs'}
+                        </span>
+                        <span className="mt-1.5 block text-[0.7rem] leading-relaxed">
+                          {ANOMALY_TOOLTIPS[flag as AnomalyFlag]}
+                        </span>
+                      </span>
+                    }
+                    side="top"
+                    block
+                  >
+                    <span className="hover:bg-bg-base/70 flex w-full cursor-help items-center justify-between gap-3 rounded-lg py-2.5 pr-1 pl-1 text-sm transition-colors">
+                      <span className="flex items-center gap-2.5">
+                        <AlertTriangle
+                          className="text-heat-hot h-3.5 w-3.5 shrink-0"
+                          aria-hidden="true"
+                        />
+                        <span className="text-text-primary">
+                          {ANOMALY_LABELS[flag as AnomalyFlag]}
+                        </span>
+                      </span>
+                      <span className="text-text-primary tabular-nums font-semibold">
+                        {list.length}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-text-primary tabular-nums font-semibold">
-                    {list.length}
-                  </span>
+                  </Tooltip>
                 </li>
               ))}
             </ul>

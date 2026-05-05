@@ -8,7 +8,7 @@ test.describe('Chat panel', () => {
     await expect(trigger).toBeVisible();
     await trigger.click();
 
-    await expect(page.getByRole('complementary', { name: /Chat with Vera/i })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: /Chat with Vera/i })).toBeVisible();
     await expect(page.getByText(/Try asking/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /Who.s worst this week/i })).toBeVisible();
   });
@@ -30,6 +30,6 @@ test.describe('Chat panel', () => {
     await page.goto('/dashboard');
     await page.getByRole('button', { name: /Ask Vera/i }).click();
     await page.getByRole('button', { name: /Close chat/i }).click();
-    await expect(page.getByRole('complementary', { name: /Chat with Vera/i })).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: /Chat with Vera/i })).toHaveCount(0);
   });
 });

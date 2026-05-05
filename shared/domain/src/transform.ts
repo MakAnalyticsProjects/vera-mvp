@@ -33,10 +33,22 @@ export function toARJob(
   const heat = computeHeatScore(source, { now: context.now, anomalyCount: anomalies.length });
 
   const customerObj = source.customer ?? null;
+  const cleanName = (s: string | null | undefined) => {
+    const t = (s ?? '').trim();
+    if (t.length === 0) return null;
+    // RoofLink uses literal 'Unknown' as a placeholder for unset values.
+    if (/^unknown$/i.test(t)) return null;
+    return t;
+  };
   const customerName =
-    customerObj?.name ||
-    [customerObj?.first_name, customerObj?.last_name].filter(Boolean).join(' ') ||
-    customerObj?.company_name ||
+    cleanName(customerObj?.name) ??
+    cleanName(
+      [customerObj?.first_name, customerObj?.last_name]
+        .map((p) => (p ?? '').trim())
+        .filter((p) => p.length > 0)
+        .join(' '),
+    ) ??
+    cleanName(customerObj?.company_name) ??
     null;
 
   return {
@@ -47,17 +59,17 @@ export function toARJob(
     state: source.state ?? null,
     region: source.region?.name ?? null,
     jobType: source.job_type ?? null,
-    customerName: customerName || null,
+    customerName: customerName ?? null,
     rep: source.rep?.id
       ? {
           id: source.rep.id,
-          name: source.rep.full_name ?? 'Unknown',
-          email: source.rep.email ?? null,
+          name: source.rep.full_name?.trim() || '—',
+          email: source.rep.email?.trim() || null,
           color: source.rep.color ?? null,
         }
       : null,
-    leadStatus: source.lead_status?.label ?? null,
-    leadSource: source.lead_source?.name ?? null,
+    leadStatus: cleanName(source.lead_status?.label) ?? null,
+    leadSource: cleanName(source.lead_source?.name) ?? null,
     isInsurance: isInsurance(source),
     netTerms: getNetTerms(source),
     dateSigned: source.date_signed ?? null,

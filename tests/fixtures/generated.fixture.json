@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-05T07:34:48.224Z",
+  "generatedAt": "2026-05-05T10:53:24.890Z",
   "asOf": "2026-05-05T00:00:00.000Z",
   "jobCount": 130,
   "totalAR": 1278629.3299999996,
@@ -20,7 +20,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-04-16T13:24:24.121550-05:00",
@@ -74,7 +74,7 @@
         "color": "#1aaf2c"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": null,
@@ -128,7 +128,7 @@
         "color": "#B7950B"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-04-11T17:49:27.005785-05:00",
@@ -236,7 +236,7 @@
         "color": "#1F618D"
       },
       "leadStatus": "Signed and Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-04-09T15:13:58.316774-05:00",
@@ -290,7 +290,7 @@
         "color": "#85929E"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-04-07T22:47:00-05:00",
@@ -344,7 +344,7 @@
         "color": "#85929E"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-04-06T12:54:00-05:00",
@@ -398,7 +398,7 @@
         "color": "#85929E"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-04-06T12:20:46.634679-05:00",
@@ -455,7 +455,7 @@
         "color": "#85929E"
       },
       "leadStatus": "Lead",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": null,
@@ -508,8 +508,8 @@
         "email": "chase@priorityroofs.com",
         "color": "#F4D03F"
       },
-      "leadStatus": "Unknown",
-      "leadSource": "Unknown",
+      "leadStatus": null,
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": "2026-04-03T23:14:01.710671-05:00",
@@ -563,7 +563,7 @@
         "color": "#B03A2E"
       },
       "leadStatus": "Signed and Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": "2026-04-02T16:30:50.661597-05:00",
@@ -619,8 +619,8 @@
         "email": "llawrence@priorityroofs.com",
         "color": "#2E4053"
       },
-      "leadStatus": "Unknown",
-      "leadSource": "Unknown",
+      "leadStatus": null,
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": null,
@@ -673,7 +673,7 @@
         "email": "chase@priorityroofs.com",
         "color": "#F4D03F"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Door Knocking",
       "isInsurance": false,
       "netTerms": 30,
@@ -731,7 +731,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-03-30T16:02:11.888808-05:00",
@@ -785,7 +785,7 @@
         "color": "#2E4053"
       },
       "leadStatus": "Lead",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": null,
@@ -839,7 +839,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-03-26T11:39:00-05:00",
@@ -896,7 +896,7 @@
         "color": "#85929E"
       },
       "leadStatus": "Inspection - Damage Found",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-03-26T02:06:00-05:00",
@@ -1009,7 +1009,7 @@
         "email": "chase@priorityroofs.com",
         "color": "#F4D03F"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Top Texas Leads-Tony)",
       "isInsurance": false,
       "netTerms": 30,
@@ -1182,7 +1182,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-03-23T11:10:04.119927-05:00",
@@ -1239,7 +1239,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Inspection - Damage Found",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": null,
@@ -1295,7 +1295,7 @@
         "email": "l.jaquez@priorityroofs.com",
         "color": "#B03A2E"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Top Texas Leads-Tony)",
       "isInsurance": false,
       "netTerms": 30,
@@ -1349,7 +1349,7 @@
         "email": "llawrence@priorityroofs.com",
         "color": "#2E4053"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Top Texas Leads-Tony)",
       "isInsurance": false,
       "netTerms": 30,
@@ -1412,7 +1412,7 @@
         "color": "#AF601A"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-03-17T11:06:00-05:00",
@@ -1759,7 +1759,7 @@
         "color": "#2E4053"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-03-09T13:30:00-05:00",
@@ -1816,7 +1816,7 @@
         "color": "#090909"
       },
       "leadStatus": "Signed and Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": "2026-03-10T17:10:35.479517-05:00",
@@ -2213,7 +2213,7 @@
         "color": "#85929E"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-02-24T12:43:00-06:00",
@@ -2332,7 +2332,7 @@
         "color": "#76448A"
       },
       "leadStatus": "Signed and Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": "2026-02-23T14:42:03.495125-06:00",
@@ -2388,7 +2388,7 @@
         "email": "beseda@priorityroofs.com",
         "color": "#117A65"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Hail Max",
       "isInsurance": true,
       "netTerms": 60,
@@ -2446,7 +2446,7 @@
         "color": "#0bb722"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-03-02T11:19:32.696313-06:00",
@@ -2502,7 +2502,7 @@
         "email": "m.najera@priorityroofs.com",
         "color": "#2E4053"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Door Knocking",
       "isInsurance": false,
       "netTerms": 30,
@@ -2564,7 +2564,7 @@
         "email": "jeff@priorityroofs.com",
         "color": "#0b0b0b"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Door Knocking",
       "isInsurance": false,
       "netTerms": 30,
@@ -2627,8 +2627,8 @@
         "email": "l.jaquez@priorityroofs.com",
         "color": "#B03A2E"
       },
-      "leadStatus": "Unknown",
-      "leadSource": "Unknown",
+      "leadStatus": null,
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": "2026-02-11T16:31:00-06:00",
@@ -2805,7 +2805,7 @@
         "color": "#2E4053"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-03-30T17:19:43.194106-05:00",
@@ -2976,7 +2976,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-02-09T16:01:16.585700-06:00",
@@ -3096,7 +3096,7 @@
         "color": "#1F618D"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-05-02T19:28:04.853243-05:00",
@@ -3210,7 +3210,7 @@
         "email": "simonb@priorityroofs.com",
         "color": "#1aaf2c"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Top Texas Leads-Tony)",
       "isInsurance": false,
       "netTerms": 30,
@@ -3267,7 +3267,7 @@
         "email": "llawrence@priorityroofs.com",
         "color": "#2E4053"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Top Texas Leads-Tony)",
       "isInsurance": false,
       "netTerms": 30,
@@ -3325,7 +3325,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-01-31T16:04:09.899515-06:00",
@@ -3387,7 +3387,7 @@
         "email": "beseda@priorityroofs.com",
         "color": "#117A65"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Roof Top",
       "isInsurance": false,
       "netTerms": 30,
@@ -3444,7 +3444,7 @@
         "email": "chase@priorityroofs.com",
         "color": "#F4D03F"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Top Texas Leads-Tony)",
       "isInsurance": false,
       "netTerms": 30,
@@ -3561,7 +3561,7 @@
         "email": "chase@priorityroofs.com",
         "color": "#F4D03F"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Door Knocking",
       "isInsurance": false,
       "netTerms": 30,
@@ -3620,7 +3620,7 @@
         "color": "#F4D03F"
       },
       "leadStatus": "Signed and Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": "2026-02-02T15:12:16.876783-06:00",
@@ -3682,7 +3682,7 @@
         "color": "#090909"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2026-01-02T14:41:05.778944-06:00",
@@ -3859,7 +3859,7 @@
         "email": "chase@priorityroofs.com",
         "color": "#F4D03F"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Top Texas Leads-Tony)",
       "isInsurance": false,
       "netTerms": 30,
@@ -3976,7 +3976,7 @@
         "color": "#F4D03F"
       },
       "leadStatus": "Inspection - Damage Found",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": null,
@@ -4381,7 +4381,7 @@
         "color": "#85929E"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2025-10-20T19:25:00-05:00",
@@ -4444,7 +4444,7 @@
         "color": "#AF601A"
       },
       "leadStatus": "Lead",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": null,
@@ -4554,8 +4554,8 @@
         "email": "j.wright@priorityroofs.com",
         "color": "#F4D03F"
       },
-      "leadStatus": "Unknown",
-      "leadSource": "Unknown",
+      "leadStatus": null,
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": null,
@@ -4612,7 +4612,7 @@
         "color": "#F4D03F"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": null,
@@ -4801,7 +4801,7 @@
         "color": "#f30da8"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": null,
@@ -4863,7 +4863,7 @@
         "email": "hawthrone@priorityroofs.com",
         "color": "#117A65"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Top Texas Leads-Tony)",
       "isInsurance": false,
       "netTerms": 30,
@@ -5203,7 +5203,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2025-08-21T09:29:17.489180-05:00",
@@ -5323,7 +5323,7 @@
         "color": "#F4D03F"
       },
       "leadStatus": "Inspection - Damage Found",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": null,
@@ -5661,7 +5661,7 @@
         "color": "#85929E"
       },
       "leadStatus": "Signed and Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2025-08-21T15:05:00-05:00",
@@ -5719,7 +5719,7 @@
         "color": "#B7950B"
       },
       "leadStatus": "Roof Approved",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2025-06-14T11:33:00-05:00",
@@ -5782,7 +5782,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Inspection - Damage Found",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2025-04-11T14:19:00-05:00",
@@ -5840,7 +5840,7 @@
         "email": "jeff@priorityroofs.com",
         "color": "#0b0b0b"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Top Texas Leads-Tony)",
       "isInsurance": false,
       "netTerms": 30,
@@ -6073,8 +6073,8 @@
         "email": "ajgreco@priorityroofs.com",
         "color": "#0f0f0f"
       },
-      "leadStatus": "Unknown",
-      "leadSource": "Unknown",
+      "leadStatus": null,
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": null,
@@ -6414,7 +6414,7 @@
         "email": "johng@priorityroofs.com",
         "color": "#0d0d0d"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Customer Referral",
       "isInsurance": false,
       "netTerms": 30,
@@ -6635,8 +6635,8 @@
         "email": "angela@priorityroofs.com",
         "color": "#131313"
       },
-      "leadStatus": "Unknown",
-      "leadSource": "Unknown",
+      "leadStatus": null,
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": null,
@@ -6754,7 +6754,7 @@
         "color": "#2980B9"
       },
       "leadStatus": "Claim Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2023-06-19T17:06:00-05:00",
@@ -6810,7 +6810,7 @@
         "color": "#2E4053"
       },
       "leadStatus": "Signed and Filed",
-      "leadSource": "Unknown",
+      "leadSource": null,
       "isInsurance": true,
       "netTerms": 60,
       "dateSigned": "2023-04-24T12:39:00-05:00",
@@ -6920,8 +6920,8 @@
         "email": "angela@priorityroofs.com",
         "color": "#131313"
       },
-      "leadStatus": "Unknown",
-      "leadSource": "Unknown",
+      "leadStatus": null,
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": null,
@@ -6982,7 +6982,7 @@
         "email": "micah@priorityroofs.com",
         "color": "#0d0d0d"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Door Knocking",
       "isInsurance": false,
       "netTerms": 30,
@@ -7093,8 +7093,8 @@
         "email": "joshs@priorityroofs.com",
         "color": "#0d0d0d"
       },
-      "leadStatus": "Unknown",
-      "leadSource": "Unknown",
+      "leadStatus": null,
+      "leadSource": null,
       "isInsurance": false,
       "netTerms": 30,
       "dateSigned": "2022-11-11T11:38:00-06:00",
@@ -7148,7 +7148,7 @@
         "email": "davidjones@priorityroofs.com",
         "color": "#0d0d0d"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Door Knocking",
       "isInsurance": false,
       "netTerms": 30,
@@ -7203,7 +7203,7 @@
         "email": "davidjones@priorityroofs.com",
         "color": "#0d0d0d"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Customer Referral",
       "isInsurance": false,
       "netTerms": 30,
@@ -7314,7 +7314,7 @@
         "email": "elias@priorityroofs.com",
         "color": "#0b0b0b"
       },
-      "leadStatus": "Unknown",
+      "leadStatus": null,
       "leadSource": "Telemarketing (Roof Appointments)",
       "isInsurance": false,
       "netTerms": 30,

@@ -13,21 +13,21 @@ export function MetricTile({ label, value, hint, className, emphasis = 'default'
   return (
     <div
       className={cn(
-        'bg-bg-card border-border rounded-[var(--radius-card)] border p-6',
+        'bg-bg-card border-border rounded-[var(--radius-card)] border p-8',
         className,
       )}
     >
-      <p className="text-text-muted text-xs tracking-wider uppercase">{label}</p>
+      <p className="text-text-muted text-xs tracking-[0.18em] uppercase">{label}</p>
       <p
         className={cn(
-          'font-display mt-3 text-4xl tracking-tight tabular-nums',
+          'font-display mt-4 text-4xl tracking-tight tabular-nums',
           emphasis === 'accent' && 'text-accent',
           emphasis === 'critical' && 'text-heat-critical',
         )}
       >
         {value}
       </p>
-      {hint ? <p className="text-text-secondary mt-2 text-sm">{hint}</p> : null}
+      {hint ? <p className="text-text-secondary mt-3 text-sm">{hint}</p> : null}
     </div>
   );
 }
