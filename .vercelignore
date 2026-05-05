@@ -1,0 +1,23 @@
+# Massive raw RoofLink export — only needed locally for `pnpm preprocess`.
+# The slim apps/web/data/generated.json (~150 KB) is committed and used at
+# build time on Vercel.
+data/jobs_dedup.jsonl
+data/generated.json
+
+# Build outputs
+node_modules
+.next
+.turbo
+dist
+out
+
+# Tests + dev artifacts
+tests/e2e/audit-screens
+playwright-report
+test-results
+coverage
+
+# Misc
+.DS_Store
+*.log
+.vercel
