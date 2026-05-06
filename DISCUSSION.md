@@ -259,6 +259,91 @@ This section supersedes Q9 of the original spec for the daily AR brief workflow.
 
 ---
 
+## 6.8 Demo prep (May 6 2026 · today)
+
+Scorecard for today's review with Israel. Everything below is shipped to production at `vera-mvp.vercel.app` as of this morning.
+
+### Directly addressing the May 5 action items
+
+- **Aging filter auto-applies past-terms.** `/dashboard/aging` opens with `1–30 + 31–60 + 60+` selected. A "Default · past terms only · View all jobs" banner reverts to the full set in one click. Filter state lives in the URL via `nuqs` so links/bookmarks round-trip.
+- **Vera goes central + gets a face.** Ask Vera moved from a right-side sheet to a centered portal modal with an entrance animation; the floating FAB now pulses to draw attention. `<VeraAvatar>` renders in the modal header, the FAB, and assistant message bubbles, backed by `apps/web/public/vera-avatar.png`. The "Vera is watching · 130 jobs" tagline came out — the avatar carries the persona now.
+- **Rep leaderboard live with MTD/YTD primary.** All three metrics Israel asked for — install revenue (`gt_price` sum), commissions, install count — plus four extras (outstanding, oldest past terms, average heat, job count). MTD and YTD lead the period selector; Last month / 30d / 90d / 12m / All-time still available. *Variation:* one sortable table with a metric pill that re-orders, not three side-by-side tables — open question for Israel.
+- **Daily / Weekly / Monthly AR briefs (email + PDF).** `/dashboard/scheduler` lets the GM pick recipients and cadences. Each Send-now hits `/api/brief/send` which renders a cadence-specific PDF and ships via Resend. The three briefs differ on cover-page KPIs, headline, and section order — *not* just the subject line.
+  - **Daily**: today's snapshot. Standard 4 KPIs, top jobs, anomalies, top reps.
+  - **Weekly**: "what just slipped" framing. NEW PAST TERMS / 1-30 BUCKET / HOT+CRIT / REPS OVER $50K KPIs. Adds a "Just slipped past terms this week" card. 8-rep accountability list.
+  - **Monthly (covers month-end)**: close-out framing. OPEN AR / PAST TERMS / STUCK ITEMS / FELL-THROUGH KPIs. Adds a **Close-out checklist** card with the GM-facing ask per stuck-item type (insurance final check stuck, no cert of completion, no commission request, retail-no-payment, balance-exceeds-price). 10-rep accountability list.
+  - All three PDFs use `wrap={false}` on every cover-page card so titles + column headers never orphan from their data rows. The full job list at the back uses a flat layout with a fixed, repeating column header.
+
+### Bonus shipped — beyond the May 5 list
+
+A lot of polish landed alongside the headline items. Worth calling out individually because each one is independently demoable.
+
+**New top-level routes**
+- **`/design`** — full design system documentation page (~900 lines). Every shared/ui component shown in context — MetricTile, Card, AgingChip, HeatMeter, DonutChart, FilterMenu, TablePagination, Tooltip, animations, iconography, color tokens. Replaces the previous `/dashboard/design` so the design system loads with its own chrome and isn't gated by the dashboard.
+- **`/docs`** — handbook (~590 lines) covering what Vera is, how AR / payment terms work, the heat-score model, every report, and the surfaced default assumptions. Pulled this content out of the bloated landing page so the landing page can stay marketing.
+- **Slimmed landing page** — three clear CTAs (open dashboard / read how Vera works / see design system) plus a tail card and footer of cross-links. Was 500+ lines of mixed marketing/educational copy; now pure marketing.
+- **Shared `<PageNav>` scrollspy** — sticky table-of-contents on `/design` and `/docs`, driven by IntersectionObserver. Highlights the section currently in the upper band of the viewport (`aria-current='true'` for testability).
+
+**Table & filter UX (Aging, Milestones, Reconciliation, Rep Leaderboard)**
+- **URL-state for everything.** `nuqs` backs reps, regions, missing milestones, page, pageSize, tab, metric, and period. Every report is bookmarkable; refresh preserves state; links can be shared with filters baked in.
+- **Integrated pagination** via a new `TableShell` footer slot — pagination sits flush with the table instead of floating below as a separate component.
+- **`TablePagination`** — rows-per-page dropdown, smart ellipsis past 5 pages, prev/next, anchored to the table footer.
+- **`FilterMenu`** — chip-group filter UI with a searchable rep dropdown rendered via portal (so it escapes overflow-clipped tables). Replaces the previous global search box.
+- **MetricTile uniform height** — hint slot is reserved even when empty, so a row of tiles doesn't have one tile shorter than its neighbors.
+- **`whitespace-nowrap`** on table headers — multi-word column headers no longer wrap and bloat row height.
+
+**Follow-ups page UX**
+- Switched from paginated to **infinite scroll** with an IntersectionObserver sentinel and "Showing X of Y · scroll to load more" hint. Each follow-up card height is locked to `min-h-[200px]` so the list reads as a uniform stack.
+
+**Chrome**
+- Sidebar header and dashboard top bar share an `h-[84px]` flex container so their bottom borders sit on the same horizontal line — was previously a noticeable misalignment.
+- Sidebar gains a `mt-auto` footer cluster: **"How Vera works"** link to `/docs` and **"Log out"** link to landing. (Log out is symbolic for now — there's no auth, but the affordance is there for when there is.)
+- Main content gains `pb-32` so pagination can't collide with the FAB.
+
+**Animations & motion (with prefers-reduced-motion fallbacks)**
+- `vera-modal-in` — entrance animation for the centered Ask Vera modal.
+- `vera-callout-in` — subtle rise for surface-level callouts.
+- `vera-fab-pulse` — continuous pulse on the floating Ask Vera button.
+- `vera-rise` / `vera-rise-delay-N` — staggered section entrance on dashboard pages.
+- Sheet (job detail drawer) entrance animation.
+
+**Today's polish (the same commit that shipped the email scheduler)**
+- **PDF page-break safety**, applied to every cadence's PDF: `wrap={false}` on every cover-page card so titles + column headers never orphan; flat full-job-list layout at the back with a fixed, repeating column header. Fixes a regression where Monthly's Per-rep accountability table had its header stranded on page 1 with bare data rows on page 2.
+- **Native `<input type="time">`** time picker — single input, no Hour/Minute/AM-PM dropdowns, OS calendar-picker glyph hidden via `[&::-webkit-calendar-picker-indicator]:hidden`. Replaces a previous 3-Select implementation.
+- **DonutChart SSR hydration fix** — the slice `<title>` was emitting three text-node children separated by JSX whitespace, which Next 16 / React 19 flagged as a hydration mismatch and re-rendered on the client. Collapsed to a single template-literal expression so SSR and client emit identical text.
+
+**Data + docs hygiene**
+- Preprocess now maps case-insensitive `'unknown'` to `null` so the literal string can never leak into UI labels.
+- `DEMO_SCRIPT.md` + `README.md` updated to point at `/design` (was `/dashboard/design`).
+- `NEXT_FEATURES.md` captures the Phase 2 backlog distilled after the May 5 demo — most of which has now shipped.
+
+### Open from May 5 — for context only (Israel said these can flex)
+
+- **Quarter-end + year-end review emails** — Q and Y cadences not yet built. Scheduler UI + `/api/brief/send` already accept a `cadence` parameter, so adding them is mostly a content + section-shape question. Holding for explicit go-ahead.
+- **Architecture for two ingestion sources (Rooflink + future CRM).** Not yet abstracted. Open question: is the second source a CRM or QuickBooks for payment dates? The shape of the abstraction depends on which fields each source contributes.
+- **"Paid in full" date — researched, confirmed not present.** Inspected `data/jobs_dedup.jsonl` (5K+ records sampled). Every payment field is a single sum (`estimate.payments`, `estimate.balance`) — no array of payment events, no `paid_in_full_at`, no `balance_zeroed_at`. The closest proxies are `custom_steps.final_check_endorsed.date_completed` (insurance-only, covers ~2% of paid-in-full jobs), `commission_request.date_completed` (loose proxy, not enforced), and `date_last_edited` (moves on any edit — noisy). **Implication for Trend Analysis (req #7):** speed-of-collection / average-days-to-paid-in-full is not computable from the current export. Two paths forward — (a) ask RoofLink whether there's a payments endpoint exposing `[{job_id, amount, date}, …]`, or (b) Israel's original instinct: pull payment dates from QuickBooks once that integration is on the table.
+- **Leaderboard-as-three-tables vs single-table-with-pill** — pending Israel's preference.
+
+### Talking points for today's demo
+
+1. **Land on the slimmed-down landing page.** Show the three CTAs. Click "see design system" to flash the new `/design` route + scrollspy. Flip back. Click "read how Vera works" to flash `/docs`.
+2. **Open the dashboard.** Top-to-bottom: Today's briefing → MetricTiles (uniform heights) → Heat distribution donut → Top three. Click the pulsing FAB to show the centered Ask Vera modal + Vera avatar; ask Vera something quick that triggers tool calls.
+3. **Walk Aging.** Open `/dashboard/aging` — point at the "Default · past terms only" banner. Apply a rep filter from the FilterMenu (the searchable dropdown is one of the polish wins). Copy the URL, paste it in a new tab — filter state round-trips. Demonstrate pagination at the bottom of the table.
+4. **Show Follow-ups infinite scroll.** Scroll the list to trigger the IntersectionObserver — point at the "Showing X of Y" indicator updating.
+5. **Walk the Rep Leaderboard.** Switch the metric pill between install revenue → commissions → installs. Switch the period between MTD → YTD. Ask Israel about single-table vs three-table.
+6. **Open the Scheduler.** Walk Daily / Weekly / Monthly rows. Mention the preview banner is explicit about recurring storage being preview-only; Send-now is real. Click Send-now on Daily to fire a real email mid-demo. Show the new native time picker in the row config.
+7. **Open the three PDFs in the inbox** side-by-side: Daily snapshot → Weekly "what slipped" → Monthly close-out checklist with GM asks. Point at how the layout actually differs (KPIs, headline, sections), not just the subject.
+8. **Wrap** by mentioning the open list as a flexible parking lot — Q+Y emails, dual-source architecture, paid-in-full research, leaderboard layout. Israel drives priority.
+
+### Production checklist (verified before this section was written)
+
+- [x] All 10 routes return 200 (landing, /design, /docs, /dashboard, /dashboard/aging, /dashboard/follow-ups, /dashboard/milestones, /dashboard/reconciliation, /dashboard/rep-leaderboard, /dashboard/scheduler).
+- [x] All 6 GET API endpoints return data; `POST /api/chat` streams tool-calling correctly (Vera correctly identified the highest-heat job).
+- [x] `POST /api/brief/send` ships all three cadences from production via Resend.
+- [x] Vercel env vars in production: `OPENAI_API_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`.
+
+---
+
 ## 7. Out of scope (explicitly)
 
 - QuickBooks integration / sync verification (requirement #6)
