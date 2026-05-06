@@ -1,80 +1,9 @@
-import { Card, MetricTile, VeraQuote } from '@vera/ui';
-import { formatUSD } from '@vera/utils';
 import { getData } from '@/lib/data';
-import { ReconciliationList } from './ReconciliationList';
+import { ReconciliationView } from './ReconciliationView';
+
+export const dynamic = 'force-dynamic';
 
 export default function ReconciliationPage() {
   const { jobs } = getData();
-  const fellThrough = jobs
-    .filter((j) => j.fellThroughCracks)
-    .sort((a, b) => b.daysPastTerms - a.daysPastTerms);
-
-  const totalStuck = fellThrough.reduce((s, j) => s + j.balance, 0);
-  const oldest = fellThrough[0]?.daysSinceInstall ?? 0;
-  const distinctReps = new Set(fellThrough.map((j) => j.rep?.id).filter(Boolean)).size;
-
-  const narrative =
-    fellThrough.length === 0
-      ? "Nothing fell through this week. Every completed install has at least one fresh signal — paperwork, an endorsed check, a commission request, or a recent edit. I'll keep watching."
-      : `${fellThrough.length} ${
-          fellThrough.length === 1 ? 'install has' : 'installs have'
-        } gone quiet — no insurance check endorsement, no certificate of completion, no commission request, and no edits in the last two weeks. That's ${formatUSD(
-          totalStuck,
-        )} sitting somewhere unattended, across ${distinctReps} ${
-          distinctReps === 1 ? 'rep' : 'reps'
-        }. The oldest one was installed ${oldest} days ago.`;
-
-  return (
-    <div className="mx-auto max-w-7xl space-y-10">
-      <header className="space-y-3 vera-rise">
-        <p className="text-text-muted text-xs tracking-[0.2em] uppercase">
-          Weekly · unpaid job reconciliation
-        </p>
-        <h1 className="font-display text-4xl tracking-tight md:text-5xl">
-          Fell through cracks
-        </h1>
-        <VeraQuote>{narrative}</VeraQuote>
-      </header>
-
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4 vera-rise-delay-1">
-        <MetricTile
-          label="Stuck jobs"
-          value={fellThrough.length}
-          emphasis={fellThrough.length > 0 ? 'critical' : 'default'}
-          tooltip="Completed installs with zero signs of life — no insurance check endorsed in 30 days, no certificate of completion, no commission request, and no record edits in the last 14 days. These have been forgotten."
-        />
-        <MetricTile
-          label="Locked up"
-          value={formatUSD(totalStuck)}
-          tooltip="Total dollars sitting in stuck jobs. This is revenue that's likely already worked (materials + labor + commission paid out), but no one is actively trying to collect it."
-        />
-        <MetricTile
-          label="Reps affected"
-          value={distinctReps}
-          tooltip="Number of distinct reps with at least one stuck job. If this number is large relative to the rep count, the leak is systemic; if small, it's concentrated in a few reps."
-        />
-        <MetricTile
-          label="Oldest install"
-          value={oldest > 0 ? `${oldest} days` : '—'}
-          tooltip="Days since the oldest stuck install. The longer this number, the harder the recovery — past 12 months, recovery rates drop sharply."
-        />
-      </section>
-
-      <section className="space-y-3 vera-rise-delay-2">
-        <h2 className="text-text-secondary text-sm tracking-[0.2em] uppercase">
-          The list — oldest first
-        </h2>
-        {fellThrough.length === 0 ? (
-          <Card>
-            <p className="text-text-secondary">
-              Nothing to reconcile this morning. Open the aging report to keep an eye on
-              what&apos;s drifting toward stuck.
-            </p>
-          </Card>
-        ) : (
-          <ReconciliationList jobs={fellThrough} />
-        )}
-      </section>
-    </div>
-  );
+  return <ReconciliationView jobs={jobs} />;
 }

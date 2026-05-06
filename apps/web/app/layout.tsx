@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Fraunces, Inter } from 'next/font/google';
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import './globals.css';
 
 const fraunces = Fraunces({
@@ -21,7 +22,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable} h-full antialiased`}>
-      <body className="bg-bg-base text-text-primary min-h-full font-sans">{children}</body>
+      <body className="bg-bg-base text-text-primary min-h-full font-sans">
+        <NuqsAdapter>{children}</NuqsAdapter>
+      </body>
     </html>
   );
 }

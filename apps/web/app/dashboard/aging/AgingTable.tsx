@@ -57,7 +57,13 @@ const COLUMNS = [
   },
 ];
 
-export function AgingTable({ jobs }: { jobs: ARJob[] }) {
+export function AgingTable({
+  jobs,
+  footer,
+}: {
+  jobs: ARJob[];
+  footer?: React.ReactNode;
+}) {
   const [selected, setSelected] = useState<ARJob | null>(null);
 
   if (jobs.length === 0) {
@@ -72,7 +78,7 @@ export function AgingTable({ jobs }: { jobs: ARJob[] }) {
 
   return (
     <>
-      <TableShell maxHeight={640}>
+      <TableShell maxHeight={640} footer={footer}>
         <Table>
           <TableHead columns={COLUMNS} />
           <tbody>

@@ -13,14 +13,15 @@ test.describe('Aging & anomalies', () => {
     await expect(page.getByText(/What looks strange/i)).toBeVisible();
   });
 
-  test('clicking a bucket filters the table', async ({ page }) => {
-    await page.goto('/dashboard/aging?bucket=60-plus-past');
-    // Filter clear link should appear when filter is active.
-    await expect(page.getByRole('link', { name: /Clear filters/i })).toBeVisible();
+  test('clicking a bucket filter via URL applies it', async ({ page }) => {
+    await page.goto('/dashboard/aging?buckets=60-plus-past');
+    await page.waitForTimeout(800);
+    // Toolbar subtitle indicates active filters
+    await expect(page.getByText(/1 filter applied/i)).toBeVisible();
   });
 
   test('clicking a row opens the JobDetailSheet', async ({ page }) => {
-    await page.goto('/dashboard/aging?bucket=60-plus-past');
+    await page.goto('/dashboard/aging?buckets=60-plus-past');
     await page.waitForTimeout(800);
     // Click first row in the table body.
     await page.locator('table tbody tr').first().click();

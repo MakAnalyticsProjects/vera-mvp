@@ -1,0 +1,25 @@
+import { expect, test } from '@playwright/test';
+
+test.describe('Rep leaderboard', () => {
+  test('renders leaderboard, top-10 chart, and metric tiles', async ({ page }) => {
+    await page.goto('/dashboard/rep-leaderboard');
+    await expect(
+      page.getByRole('heading', { name: /Where the money is by rep/i }),
+    ).toBeVisible();
+    await expect(page.getByText('Reps with AR')).toBeVisible();
+    await expect(page.getByText(/Top 10 reps by/)).toBeVisible();
+    await expect(page.getByText(/Leaderboard —/i).first()).toBeVisible();
+  });
+
+  test('clicking a metric chip updates the URL', async ({ page }) => {
+    await page.goto('/dashboard/rep-leaderboard');
+    await page.getByRole('button', { name: 'Average heat', exact: true }).click();
+    await expect(page).toHaveURL(/metric=avgHeat/);
+  });
+
+  test('changing period updates the URL', async ({ page }) => {
+    await page.goto('/dashboard/rep-leaderboard?metric=installValue');
+    await page.getByRole('button', { name: 'Last 30 days', exact: true }).click();
+    await expect(page).toHaveURL(/period=30d/);
+  });
+});

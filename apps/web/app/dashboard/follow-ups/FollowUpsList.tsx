@@ -6,6 +6,7 @@ import {
   Card,
   HeatMeter,
   MissingStepTag,
+  Tooltip,
 } from '@vera/ui';
 import { formatUSD } from '@vera/utils';
 import { generateFollowUpDraft } from '@vera/domain';
@@ -39,10 +40,10 @@ function FollowUpRow({ job, onOpen }: { job: ARJob; onOpen: () => void }) {
   const draft = generateFollowUpDraft(job);
   return (
     <Card
-      className="!py-5 cursor-pointer transition-shadow hover:shadow-[0_4px_16px_-6px_rgba(31,27,22,0.08)]"
+      className="!py-5 min-h-[200px] cursor-pointer transition-shadow hover:shadow-[0_4px_16px_-6px_rgba(31,27,22,0.08)]"
       onClick={onOpen}
     >
-      <div className="flex flex-wrap items-start justify-between gap-6">
+      <div className="flex h-full flex-wrap items-start justify-between gap-6">
         <div className="min-w-0 flex-1 space-y-2">
           <p className="font-display truncate text-xl tracking-tight">{job.address}</p>
           <p className="text-text-secondary text-sm">
@@ -51,9 +52,32 @@ function FollowUpRow({ job, onOpen }: { job: ARJob; onOpen: () => void }) {
           </p>
           {job.missingMilestones.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 pt-1">
-              {job.missingMilestones.map((label) => (
+              {job.missingMilestones.slice(0, 2).map((label) => (
                 <MissingStepTag key={label} label={label} />
               ))}
+              {job.missingMilestones.length > 2 ? (
+                <Tooltip
+                  content={
+                    <span className="block">
+                      <span className="block font-semibold">Also missing:</span>
+                      <span className="mt-1 block">
+                        {job.missingMilestones.slice(2).map((label) => (
+                          <span key={label} className="mt-0.5 block">
+                            · {label}
+                          </span>
+                        ))}
+                      </span>
+                    </span>
+                  }
+                >
+                  <span
+                    onClick={(e) => e.stopPropagation()}
+                    className="border-border bg-bg-base text-text-secondary inline-flex cursor-help items-center rounded-full border px-2.5 py-1 text-xs leading-none whitespace-nowrap"
+                  >
+                    +{job.missingMilestones.length - 2} more
+                  </span>
+                </Tooltip>
+              ) : null}
             </div>
           ) : null}
         </div>

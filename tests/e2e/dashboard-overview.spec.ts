@@ -22,7 +22,7 @@ test.describe('Dashboard overview (Today)', () => {
   test('sidebar nav links work', async ({ page }) => {
     await page.goto('/dashboard');
 
-    for (const slug of ['aging', 'milestones', 'follow-ups', 'rep-report', 'reconciliation']) {
+    for (const slug of ['aging', 'milestones', 'follow-ups', 'rep-leaderboard', 'reconciliation']) {
       await page.goto(`/dashboard/${slug}`);
       // Stub renders a heading; just confirm the route resolves with no error.
       await expect(page.locator('h1')).toBeVisible();

@@ -8,13 +8,13 @@ test.describe('Follow-ups & executive review', () => {
     ).toBeVisible();
     await expect(page.getByText(/Hot — for reps/)).toBeVisible();
     await expect(page.getByText(/Critical — exec review/)).toBeVisible();
-    await expect(page.getByRole('link', { name: /Rep follow-ups/ })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Executive review queue/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Rep follow-ups/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Executive review queue/ })).toBeVisible();
   });
 
   test('switches to the executive queue tab', async ({ page }) => {
     await page.goto('/dashboard/follow-ups');
-    await page.getByRole('link', { name: /Executive review queue/ }).click();
+    await page.getByRole('button', { name: /Executive review queue/ }).click();
     await expect(page).toHaveURL(/tab=queue/);
   });
 

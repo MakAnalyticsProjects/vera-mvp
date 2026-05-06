@@ -10,6 +10,7 @@ import {
   TableHead,
   TableRow,
   TableShell,
+  Tooltip,
 } from '@vera/ui';
 import { formatUSD } from '@vera/utils';
 import type { ARJob } from '@vera/types';
@@ -51,12 +52,18 @@ const COLUMNS = [
   },
 ];
 
-export function MilestonesTable({ jobs }: { jobs: ARJob[] }) {
+export function MilestonesTable({
+  jobs,
+  footer,
+}: {
+  jobs: ARJob[];
+  footer?: React.ReactNode;
+}) {
   const [selected, setSelected] = useState<ARJob | null>(null);
 
   return (
     <>
-      <TableShell maxHeight={720}>
+      <TableShell maxHeight={720} footer={footer}>
         <Table>
           <TableHead columns={COLUMNS} />
           <tbody>
@@ -83,10 +90,33 @@ export function MilestonesTable({ jobs }: { jobs: ARJob[] }) {
                       Paperwork current
                     </span>
                   ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {job.missingMilestones.map((label) => (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {job.missingMilestones.slice(0, 2).map((label) => (
                         <MissingStepTag key={label} label={label} />
                       ))}
+                      {job.missingMilestones.length > 2 ? (
+                        <Tooltip
+                          content={
+                            <span className="block">
+                              <span className="block font-semibold">Also missing:</span>
+                              <span className="mt-1 block">
+                                {job.missingMilestones.slice(2).map((label) => (
+                                  <span key={label} className="mt-0.5 block">
+                                    · {label}
+                                  </span>
+                                ))}
+                              </span>
+                            </span>
+                          }
+                        >
+                          <span
+                            onClick={(e) => e.stopPropagation()}
+                            className="border-border bg-bg-base text-text-secondary inline-flex cursor-help items-center rounded-full border px-2.5 py-1 text-xs leading-none whitespace-nowrap"
+                          >
+                            +{job.missingMilestones.length - 2} more
+                          </span>
+                        </Tooltip>
+                      ) : null}
                     </div>
                   )}
                 </TableCell>
