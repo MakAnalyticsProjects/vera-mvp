@@ -20,6 +20,23 @@ test.describe('Aging & anomalies', () => {
     await expect(page.getByText(/1 filter applied/i)).toBeVisible();
   });
 
+  test('defaults to past-terms only and exposes a view-all reset', async ({ page }) => {
+    await page.goto('/dashboard/aging');
+    await page.waitForTimeout(800);
+    // Default banner is visible and the URL is clean (default doesn't serialize).
+    const banner = page.getByTestId('aging-default-banner');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText(/past terms only/i);
+    // Default-on means no "filter applied" subtitle.
+    await expect(page.getByText(/filter applied/i)).toHaveCount(0);
+
+    // Clicking "View all" removes the filter, banner disappears, and within-terms
+    // jobs become visible (their bucket badge now appears in the table).
+    await banner.getByRole('button', { name: /view all jobs/i }).click();
+    await page.waitForTimeout(400);
+    await expect(page.getByTestId('aging-default-banner')).toHaveCount(0);
+  });
+
   test('clicking a row opens the JobDetailSheet', async ({ page }) => {
     await page.goto('/dashboard/aging?buckets=60-plus-past');
     await page.waitForTimeout(800);

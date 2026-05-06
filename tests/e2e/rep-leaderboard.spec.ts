@@ -22,4 +22,18 @@ test.describe('Rep leaderboard', () => {
     await page.getByRole('button', { name: 'Last 30 days', exact: true }).click();
     await expect(page).toHaveURL(/period=30d/);
   });
+
+  test('MTD and YTD lead the period selector', async ({ page }) => {
+    await page.goto('/dashboard/rep-leaderboard?metric=installValue');
+    const mtdBtn = page.getByRole('button', { name: 'MTD', exact: true });
+    const ytdBtn = page.getByRole('button', { name: 'YTD', exact: true });
+    await expect(mtdBtn).toBeVisible();
+    await expect(ytdBtn).toBeVisible();
+
+    await ytdBtn.click();
+    await expect(page).toHaveURL(/period=ytd/);
+
+    await mtdBtn.click();
+    await expect(page).toHaveURL(/period=mtd/);
+  });
 });

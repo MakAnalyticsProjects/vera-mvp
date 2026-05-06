@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { MessageCircle, X, Send } from 'lucide-react';
-import { Button } from '@vera/ui';
+import { X, Send } from 'lucide-react';
+import { Button, VeraAvatar } from '@vera/ui';
 
 const SUGGESTIONS = [
   "Who's worst this week?",
@@ -94,9 +94,9 @@ export function ChatPanel() {
       ) : null}
       <button
         onClick={handleOpen}
-        className="bg-accent vera-fab-pulse flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium text-white shadow-lg transition-shadow hover:shadow-xl"
+        className="bg-accent vera-fab-pulse flex items-center gap-2 rounded-full py-1.5 pr-5 pl-1.5 text-sm font-medium text-white shadow-lg transition-shadow hover:shadow-xl"
       >
-        <MessageCircle className="h-4 w-4" aria-hidden="true" />
+        <VeraAvatar size="sm" ring />
         Ask Vera
       </button>
     </div>
@@ -116,12 +116,17 @@ export function ChatPanel() {
             className="vera-modal-in bg-bg-card border-border flex h-full max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <header className="border-border flex items-start justify-between gap-4 border-b px-7 py-5">
-              <div>
-                <p className="text-text-muted text-[0.65rem] tracking-[0.2em] uppercase">
-                  Chatting with
-                </p>
-                <p className="font-display mt-1 text-2xl tracking-tight">Vera</p>
+            <header className="border-border flex items-center justify-between gap-4 border-b px-7 py-5">
+              <div className="flex items-center gap-3">
+                <VeraAvatar size="md" />
+                <div>
+                  <p className="text-text-muted text-[0.65rem] tracking-[0.2em] uppercase">
+                    Chatting with
+                  </p>
+                  <p className="font-display mt-0.5 text-2xl leading-tight tracking-tight">
+                    Vera
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setOpen(false)}
@@ -163,11 +168,11 @@ export function ChatPanel() {
                     const isVera = m.role === 'assistant';
                     if (isVera) {
                       return (
-                        <div
-                          key={m.id}
-                          className="border-accent text-text-primary max-w-[95%] border-l-2 pl-4 text-sm leading-relaxed"
-                        >
-                          <MarkdownMessage text={text} />
+                        <div key={m.id} className="flex max-w-[95%] gap-3">
+                          <VeraAvatar size="xs" className="mt-1" />
+                          <div className="border-accent text-text-primary flex-1 border-l-2 pl-3 text-sm leading-relaxed">
+                            <MarkdownMessage text={text} />
+                          </div>
                         </div>
                       );
                     }
@@ -180,7 +185,10 @@ export function ChatPanel() {
                     );
                   })}
                   {isLoading ? (
-                    <p className="text-text-muted text-sm italic">Vera is thinking…</p>
+                    <div className="flex items-center gap-3">
+                      <VeraAvatar size="xs" />
+                      <p className="text-text-muted text-sm italic">Vera is thinking…</p>
+                    </div>
                   ) : null}
                 </div>
               )}

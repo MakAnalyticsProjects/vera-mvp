@@ -7,6 +7,7 @@ export * from './components/AgingChip';
 export * from './components/AnomalyTag';
 export * from './components/MissingStepTag';
 export * from './components/VeraQuote';
+export * from './components/VeraAvatar';
 export * from './components/MetricTile';
 export * from './components/BarChart';
 export * from './components/DonutChart';

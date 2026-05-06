@@ -227,6 +227,16 @@ Full detail in `ARCHITECTURE.md`. Engineering rules in `CLAUDE.md`.
 
 ---
 
+## 6.6 Demo follow-ups (May 5 2026)
+
+Decisions taken in the post-demo review with Israel:
+
+- **Aging defaults to past-terms only.** `/dashboard/aging` auto-applies a `1-30-past + 31-60-past + 60+ past` bucket filter so the daily list isn't drowned out by jobs that aren't due yet. A surfaced banner ("Default · past terms only · View all jobs") lets the user remove the filter; clearing all bucket selections shows the full set.
+- **Rep leaderboard period selector exposes MTD and YTD as primary options.** `lastMonth / 30d / 90d / 12m / All-time` remain available; MTD and YTD lead the list per Brandon's framing.
+- **Vera personality slot.** A `<VeraAvatar>` is rendered in the chat modal header, the floating FAB, and assistant message bubbles. The asset (`apps/web/public/vera-avatar.png`) is the single drop-in point; until it's provided the component falls back to a stylized "V" mark.
+
+---
+
 ## 7. Out of scope (explicitly)
 
 - QuickBooks integration / sync verification (requirement #6)

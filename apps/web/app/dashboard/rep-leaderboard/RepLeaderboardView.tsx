@@ -37,7 +37,7 @@ type MetricKey =
   | 'commissions'
   | 'installCount';
 
-type PeriodKey = 'thisMonth' | 'lastMonth' | '30d' | '90d' | '12m' | 'all';
+type PeriodKey = 'mtd' | 'ytd' | 'lastMonth' | '30d' | '90d' | '12m' | 'all';
 
 const METRIC_OPTIONS: Array<{
   value: MetricKey;
@@ -98,7 +98,8 @@ const METRIC_OPTIONS: Array<{
 ];
 
 const PERIOD_OPTIONS: Array<{ value: PeriodKey; label: string }> = [
-  { value: 'thisMonth', label: 'This month' },
+  { value: 'mtd', label: 'MTD' },
+  { value: 'ytd', label: 'YTD' },
   { value: 'lastMonth', label: 'Last month' },
   { value: '30d', label: 'Last 30 days' },
   { value: '90d', label: 'Last 90 days' },
@@ -109,8 +110,11 @@ const PERIOD_OPTIONS: Array<{ value: PeriodKey; label: string }> = [
 function periodWindow(period: PeriodKey, asOf: Date): { start: Date; end: Date } {
   const end = new Date(asOf);
   const start = new Date(asOf);
-  if (period === 'thisMonth') {
+  if (period === 'mtd') {
     start.setUTCDate(1);
+    start.setUTCHours(0, 0, 0, 0);
+  } else if (period === 'ytd') {
+    start.setUTCMonth(0, 1);
     start.setUTCHours(0, 0, 0, 0);
   } else if (period === 'lastMonth') {
     end.setUTCDate(1);
@@ -176,7 +180,8 @@ export function RepLeaderboardView({
   const [period, setPeriod] = useQueryState(
     'period',
     parseAsStringEnum<PeriodKey>([
-      'thisMonth',
+      'mtd',
+      'ytd',
       'lastMonth',
       '30d',
       '90d',

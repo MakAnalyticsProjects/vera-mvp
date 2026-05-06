@@ -33,6 +33,15 @@ const BUCKET_ORDER: AgingBucket[] = [
   '60-plus-past',
 ];
 
+// Vera defaults to the past-terms lens — that's where every daily decision starts.
+// Set per the May 5 2026 demo with Israel ("auto-apply 30/60+ filter, allow override").
+const DEFAULT_BUCKETS: AgingBucket[] = ['1-30-past', '31-60-past', '60-plus-past'];
+
+function bucketFilterIsDefault(buckets: string[]): boolean {
+  if (buckets.length !== DEFAULT_BUCKETS.length) return false;
+  return DEFAULT_BUCKETS.every((b) => buckets.includes(b));
+}
+
 const BUCKET_COLOR: Record<AgingBucket, string> = {
   'within-terms': 'var(--color-text-muted)',
   '1-30-past': 'var(--color-heat-warm)',
@@ -93,7 +102,7 @@ export function AgingView({ jobs }: { jobs: ARJob[] }) {
   );
   const [bucketFilter, setBucketFilter] = useQueryState(
     'buckets',
-    parseAsArrayOf(parseAsString).withDefault([]),
+    parseAsArrayOf(parseAsString).withDefault(DEFAULT_BUCKETS),
   );
   const [repFilter, setRepFilter] = useQueryState(
     'reps',
@@ -255,8 +264,11 @@ export function AgingView({ jobs }: { jobs: ARJob[] }) {
   const safePageSize = pageSize as PageSize;
   const pagedJobs = sorted.slice((page - 1) * safePageSize, page * safePageSize);
 
+  const isDefaultBuckets = bucketFilterIsDefault(bucketFilter);
+  // The auto-applied past-terms default isn't user-initiated, so don't count it.
+  const bucketFilterCount = isDefaultBuckets ? 0 : bucketFilter.length;
   const filterCount =
-    bucketFilter.length +
+    bucketFilterCount +
     repFilter.length +
     regionFilter.length +
     jobTypeFilter.length +
@@ -278,6 +290,31 @@ export function AgingView({ jobs }: { jobs: ARJob[] }) {
               } more than 60 days past their terms — that's where I'd focus first. Total past terms: ${formatUSD(totalOver)}.`
             : "Nothing's deeply overdue today. The buckets below show where things stand relative to each customer's terms."}
         </VeraQuote>
+        {isDefaultBuckets ? (
+          <div
+            className="text-text-muted flex flex-wrap items-center gap-2 text-xs"
+            data-testid="aging-default-banner"
+          >
+            <Tooltip
+              content="Vera applies a past-terms-only filter by default so the daily list isn't drowned out by jobs that aren't due yet. Click 'View all' to remove it."
+              side="top"
+            >
+              <span className="border-border bg-bg-base/60 cursor-help rounded-full border px-2 py-0.5 tabular-nums">
+                Default · past terms only
+              </span>
+            </Tooltip>
+            <button
+              type="button"
+              onClick={() => {
+                setBucketFilter([]);
+                setPage(1);
+              }}
+              className="text-accent text-xs underline-offset-2 hover:underline"
+            >
+              View all jobs (including within-terms)
+            </button>
+          </div>
+        ) : null}
       </header>
 
       {/* Bucket tiles — filter-aware */}
