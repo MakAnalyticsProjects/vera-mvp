@@ -43,6 +43,7 @@ const RoofLinkEstimateSchema = z
     gt_price: z.number().nullish(),
     payments: z.number().nullish(),
     balance: z.number().nullish(),
+    commissions: z.number().nullish(),
     is_primary: z.boolean().nullish(),
     is_archived: z.boolean().nullish(),
   })
@@ -164,6 +165,7 @@ export const ARJobSchema = z.object({
   gtPrice: z.number(),
   payments: z.number(),
   balance: z.number(),
+  commissions: z.number(),
   isArchived: z.boolean(),
   warrantyVoided: z.boolean(),
   excludeFromQB: z.boolean(),

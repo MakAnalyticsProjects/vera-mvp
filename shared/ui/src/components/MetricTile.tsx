@@ -22,7 +22,7 @@ export function MetricTile({
   const inner = (
     <div
       className={cn(
-        'bg-bg-card border-border rounded-[var(--radius-card)] border p-8',
+        'bg-bg-card border-border rounded-[var(--radius-card)] border p-8 flex h-full flex-col',
         tooltip && 'cursor-help',
         className,
       )}
@@ -37,13 +37,21 @@ export function MetricTile({
       >
         {value}
       </p>
-      {hint ? <p className="text-text-secondary mt-3 text-sm">{hint}</p> : null}
+      <p
+        className={cn(
+          'text-text-secondary mt-3 text-sm',
+          !hint && 'invisible',
+        )}
+        aria-hidden={!hint}
+      >
+        {hint ?? '\u00A0'}
+      </p>
     </div>
   );
 
   if (tooltip) {
     return (
-      <Tooltip content={tooltip} block>
+      <Tooltip content={tooltip} block triggerClassName="h-full">
         {inner}
       </Tooltip>
     );

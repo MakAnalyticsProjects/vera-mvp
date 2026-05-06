@@ -12,9 +12,11 @@ export interface TableShellProps {
   /** Maximum height of the scroll container in pixels. Default 640. */
   maxHeight?: number;
   children: React.ReactNode;
+  /** Optional footer slot — typically a TablePagination strip. Renders inside the same card chrome with a top border. */
+  footer?: React.ReactNode;
 }
 
-export function TableShell({ className, maxHeight = 640, children }: TableShellProps) {
+export function TableShell({ className, maxHeight = 640, children, footer }: TableShellProps) {
   return (
     <div
       className={cn(
@@ -25,6 +27,7 @@ export function TableShell({ className, maxHeight = 640, children }: TableShellP
       <div className="overflow-y-auto" style={{ maxHeight }}>
         {children}
       </div>
+      {footer ? <div className="bg-bg-subtle/40 border-border border-t">{footer}</div> : null}
     </div>
   );
 }
@@ -52,7 +55,7 @@ export function TableHead({ columns }: { columns: TableHeadCol[] }) {
           <th
             key={c.key}
             className={cn(
-              'text-text-secondary px-5 py-4 text-[0.65rem] font-semibold tracking-[0.15em] uppercase',
+              'text-text-secondary px-5 py-4 text-[0.65rem] font-semibold tracking-[0.15em] whitespace-nowrap uppercase',
               c.align === 'right' && 'text-right',
               c.align === 'center' && 'text-center',
               !c.align && 'text-left',

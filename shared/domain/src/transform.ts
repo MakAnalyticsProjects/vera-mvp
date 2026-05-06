@@ -28,6 +28,7 @@ export function toARJob(
   const balance = est?.balance ?? 0;
   const gtPrice = est?.gt_price ?? 0;
   const payments = est?.payments ?? 0;
+  const commissions = est?.commissions ?? 0;
 
   const anomalies: AnomalyFlag[] = detectAnomalies(source, context);
   const heat = computeHeatScore(source, { now: context.now, anomalyCount: anomalies.length });
@@ -81,6 +82,7 @@ export function toARJob(
     gtPrice,
     payments,
     balance,
+    commissions,
     isArchived: est?.is_archived === true,
     warrantyVoided: source.warranty_voided === true,
     excludeFromQB: source.exclude_from_qb === true,

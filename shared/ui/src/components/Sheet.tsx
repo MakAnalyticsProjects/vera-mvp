@@ -52,14 +52,14 @@ export function Sheet({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex justify-end bg-black/40 backdrop-blur-sm"
+      className="vera-backdrop-in fixed inset-0 z-[90] flex justify-end bg-black/40 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={() => onOpenChange(false)}
     >
       <aside
         className={cn(
-          'bg-bg-card border-border flex h-full w-full flex-col border-l shadow-2xl',
+          'bg-bg-card border-border vera-sheet-in flex h-full w-full flex-col border-l shadow-2xl',
           widthClass,
           className,
         )}
