@@ -419,8 +419,8 @@ function ReportRow({
               <CalendarClock className="h-4 w-4" />
             </div>
             <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-display text-xl tracking-tight">{meta.title}</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-display text-lg tracking-tight sm:text-xl">{meta.title}</h3>
                 <span
                   className={
                     report.enabled
@@ -523,7 +523,7 @@ function ReportRow({
               </div>
             ) : null}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Tooltip
               content="Recurring scheduling isn't wired up yet — coming with the cron + persistence layer in V2."
               side="top"
@@ -531,7 +531,7 @@ function ReportRow({
               <span>
                 <Button type="button" variant="secondary" disabled>
                   <CalendarClock className="mr-2 h-3.5 w-3.5" />
-                  Schedule
+                  <span className="whitespace-nowrap">Schedule</span>
                 </Button>
               </span>
             </Tooltip>
@@ -545,11 +545,11 @@ function ReportRow({
               }
             >
               {outcome.kind === 'pending' ? (
-                <>Sending…</>
+                <span className="whitespace-nowrap">Sending…</span>
               ) : (
                 <>
                   <Send className="mr-2 h-3.5 w-3.5" />
-                  Send now
+                  <span className="whitespace-nowrap">Send now</span>
                 </>
               )}
             </Button>

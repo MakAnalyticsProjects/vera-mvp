@@ -9,7 +9,7 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { Button, VeraQuote } from '@vera/ui';
+import { Button } from '@vera/ui';
 import { PageNav } from '../_components/PageNav';
 
 const SECTIONS = [
@@ -28,22 +28,22 @@ const ASSUMPTIONS = [
     body: 'Anything earlier in the pipeline is a sales question, not an AR one. Of 103,440 records in RoofLink, that filter leaves about 130 — and those are the ones I watch.',
   },
   {
-    code: 'Q3',
+    code: 'Q2',
     title: 'Net 30 for retail. Net 60 for insurance.',
     body: 'Insurance depreciation checks legitimately take 30–90 days post-install. One blanket rule misrepresents both sides.',
   },
   {
-    code: 'Q4',
+    code: 'Q3',
     title: 'Aging buckets are relative to terms, not the calendar.',
     body: 'A 50-day-old insurance job is on time, not late. Buckets read "within terms," "1–30 past," "31–60 past," "60+ past."',
   },
   {
-    code: 'Q7',
+    code: 'Q4',
     title: 'Every escalation shows its math.',
     body: "Heat score is days past terms (40%) + balance (25%) + rep silence (20%) + anomaly count (15%). Hover any badge and you'll see exactly why the number is what it is.",
   },
   {
-    code: 'Q9',
+    code: 'Q5',
     title: 'I draft. You send.',
     body: 'No live emails go out from my account. Every nudge is a draft you can review, edit, and copy. Trust before autonomy.',
   },
@@ -51,34 +51,36 @@ const ASSUMPTIONS = [
 
 const OUT_OF_SCOPE = [
   'QuickBooks sync (no QB export was provided)',
-  'Real outbound email — drafts only',
+  'Real outbound email for rep follow-ups — drafts only',
   'Per-rep logins — exec view only',
   'Trend reports, departed-rep audits, end-of-month close',
   'Edits back to RoofLink — I\'m read-only',
-  'Mobile layouts — desktop dashboard first',
 ];
 
 export default function DocsPage() {
   return (
     <main className="bg-bg-base min-h-screen">
       {/* Top bar — same shape as /design, no dashboard chrome */}
-      <header className="border-border bg-bg-base/85 sticky top-0 z-30 flex h-[72px] items-center justify-between border-b px-8 backdrop-blur">
-        <div>
+      <header className="border-border bg-bg-base/85 sticky top-0 z-30 flex h-[72px] items-center justify-between gap-3 border-b px-4 backdrop-blur sm:px-6 md:px-8">
+        <div className="min-w-0">
           <p className="text-text-muted text-[0.65rem] tracking-[0.2em] uppercase">
             Vera Calloway · Handbook
           </p>
-          <p className="font-display text-xl tracking-tight">How I work</p>
+          <p className="font-display truncate text-lg tracking-tight sm:text-xl">
+            How I work
+          </p>
         </div>
         <Link
           href="/"
-          className="text-text-secondary hover:text-text-primary inline-flex items-center gap-2 text-sm transition-colors"
+          className="text-text-secondary hover:text-text-primary inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-sm transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to landing page
+          <span className="hidden sm:inline">Back to landing page</span>
+          <span className="sm:hidden">Back</span>
         </Link>
       </header>
 
-      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-8 py-14 lg:grid-cols-[200px_1fr]">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-4 py-10 sm:px-6 sm:py-12 md:px-8 lg:grid-cols-[200px_1fr] lg:py-14">
         {/* TOC */}
         <aside className="hidden lg:block">
           <PageNav sections={SECTIONS} />
@@ -89,7 +91,7 @@ export default function DocsPage() {
             <p className="text-text-muted text-xs tracking-[0.2em] uppercase">
               The handbook
             </p>
-            <h1 className="font-display text-5xl tracking-tight md:text-6xl">
+            <h1 className="font-display text-3xl tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
               How I think, in detail.
             </h1>
             <p className="text-text-secondary max-w-2xl text-lg leading-relaxed">
@@ -103,7 +105,7 @@ export default function DocsPage() {
           {/* WHO I AM */}
           <section id="what-vera-is" className="space-y-6 vera-rise-delay-1 scroll-mt-24">
             <SectionHeader eyebrow="Who I am" title="A read-only AR specialist." />
-            <div className="bg-bg-card border-border rounded-[var(--radius-card)] border p-8 space-y-4">
+            <div className="bg-bg-card border-border rounded-[var(--radius-card)] border p-5 sm:p-8 space-y-4">
               <p className="text-text-primary text-lg leading-relaxed">
                 I&apos;m Vera Calloway, an AI Accounts Receivable specialist for a roofing
                 company. I watch every install, notice when payment is sitting somewhere
@@ -132,7 +134,7 @@ export default function DocsPage() {
               title="What 'in AR' actually means."
             />
 
-            <div className="bg-bg-card border-border rounded-[var(--radius-card)] border p-8">
+            <div className="bg-bg-card border-border rounded-[var(--radius-card)] border p-5 sm:p-8">
               <p className="text-text-primary text-lg leading-relaxed">
                 <span className="font-semibold">AR — Accounts Receivable</span> is
                 the accounting term for money customers owe you that you haven&apos;t
@@ -181,8 +183,8 @@ export default function DocsPage() {
                 </p>
               </div>
 
-              <div className="bg-bg-card border-border overflow-hidden rounded-[var(--radius-card)] border">
-                <table className="w-full text-sm">
+              <div className="bg-bg-card border-border overflow-x-auto rounded-[var(--radius-card)] border">
+                <table className="w-full min-w-[480px] text-sm">
                   <thead className="bg-bg-subtle text-text-secondary text-[0.65rem] tracking-[0.15em] uppercase">
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold">Job type</th>
@@ -353,8 +355,7 @@ export default function DocsPage() {
               title="Default carefully. Show your work."
             />
             <p className="text-text-secondary max-w-3xl leading-relaxed">
-              Every default I use is surfaced so you can challenge it. The Q
-              codes correspond to questions in <code>SPEC.md</code>.
+              Every default I use is surfaced so you can challenge it.
             </p>
             <ol className="space-y-7">
               {ASSUMPTIONS.map((a) => (
@@ -387,13 +388,8 @@ export default function DocsPage() {
             </ul>
           </section>
 
-          {/* Vera quote + CTA */}
-          <section className="vera-rise-delay-2 space-y-8">
-            <VeraQuote>
-              Good morning. I&apos;m watching three jobs more closely than usual today —
-              Mike Ahrend&apos;s McMackin install crossed into the Hot band overnight, and
-              Brandon Roberts has two cert-of-completion gaps I&apos;d clear before lunch.
-            </VeraQuote>
+          {/* CTA */}
+          <section className="vera-rise-delay-2">
             <div className="flex flex-wrap gap-3">
               <Link href="/dashboard">
                 <Button size="lg">
@@ -497,7 +493,7 @@ function ReportExplainer({
   tiles: Array<{ label: string; meaning: string }>;
 }) {
   return (
-    <div className="bg-bg-card border-border rounded-[var(--radius-card)] border p-8">
+    <div className="bg-bg-card border-border rounded-[var(--radius-card)] border p-5 sm:p-8">
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[2fr_3fr]">
         <div>
           <div className="flex items-center gap-3">
@@ -523,9 +519,9 @@ function ReportExplainer({
             {tiles.map((t) => (
               <li
                 key={t.label}
-                className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 py-3"
+                className="flex flex-col gap-1 py-3 sm:grid sm:grid-cols-[auto_1fr] sm:items-baseline sm:gap-x-4 sm:gap-y-0"
               >
-                <span className="text-text-primary text-sm font-medium whitespace-nowrap">
+                <span className="text-text-primary text-sm font-medium sm:whitespace-nowrap">
                   {t.label}
                 </span>
                 <span className="text-text-secondary text-sm leading-relaxed">{t.meaning}</span>

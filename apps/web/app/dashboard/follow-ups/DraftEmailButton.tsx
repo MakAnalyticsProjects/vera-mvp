@@ -57,25 +57,25 @@ export function DraftEmailButton({
         onClick={() => setOpen(false)}
       >
         <div
-          className="bg-bg-card border-border max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-[var(--radius-card)] border shadow-2xl"
+          className="bg-bg-card border-border flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-[var(--radius-card)] border shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="border-border flex items-center justify-between border-b px-7 py-5">
-            <div>
-              <p className="text-text-muted text-[0.65rem] tracking-[0.2em] uppercase">
+          <div className="border-border flex shrink-0 items-center justify-between gap-3 border-b px-5 py-4 sm:px-7 sm:py-5">
+            <div className="min-w-0">
+              <p className="text-text-muted truncate text-[0.65rem] tracking-[0.2em] uppercase">
                 Draft for {repName}
               </p>
-              <p className="text-text-secondary mt-1 text-sm">{repEmail}</p>
+              <p className="text-text-secondary mt-1 truncate text-sm">{repEmail}</p>
             </div>
             <button
               onClick={() => setOpen(false)}
-              className="text-text-muted hover:text-text-primary -mr-2 rounded-full p-2 transition-colors"
+              className="text-text-muted hover:text-text-primary -mr-2 shrink-0 rounded-full p-2 transition-colors"
               aria-label="Close"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="space-y-5 px-7 py-6">
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">
             <div>
               <p className="text-text-muted text-[0.65rem] tracking-[0.2em] uppercase">
                 Subject
@@ -89,7 +89,7 @@ export function DraftEmailButton({
               </pre>
             </div>
           </div>
-          <div className="bg-bg-base/40 border-border flex justify-end gap-3 border-t px-7 py-4">
+          <div className="bg-bg-base/40 border-border flex shrink-0 flex-wrap justify-end gap-2 border-t px-5 py-3 sm:gap-3 sm:px-7 sm:py-4">
             <Button variant="secondary" size="md" onClick={copy}>
               {copied ? 'Copied ✓' : 'Copy to clipboard'}
             </Button>

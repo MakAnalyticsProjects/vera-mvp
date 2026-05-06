@@ -9,14 +9,18 @@ import { Tooltip } from './Tooltip';
  */
 export interface TableShellProps {
   className?: string;
-  /** Maximum height of the scroll container in pixels. Default 640. */
+  /**
+   * Explicit maxHeight in pixels. When omitted, a responsive default is used:
+   * 480px on `<sm` and 640px from `sm` up. Pass a number to override.
+   */
   maxHeight?: number;
   children: React.ReactNode;
   /** Optional footer slot — typically a TablePagination strip. Renders inside the same card chrome with a top border. */
   footer?: React.ReactNode;
 }
 
-export function TableShell({ className, maxHeight = 640, children, footer }: TableShellProps) {
+export function TableShell({ className, maxHeight, children, footer }: TableShellProps) {
+  const useResponsive = maxHeight === undefined;
   return (
     <div
       className={cn(
@@ -24,8 +28,18 @@ export function TableShell({ className, maxHeight = 640, children, footer }: Tab
         className,
       )}
     >
-      <div className="overflow-y-auto" style={{ maxHeight }}>
-        {children}
+      {/* overflow-x-auto wraps the y-scroll container so wide tables get a
+          horizontal scroll handle on mobile instead of clipping content. */}
+      <div className="overflow-x-auto">
+        <div
+          className={cn(
+            'overflow-y-auto',
+            useResponsive && 'max-h-[480px] sm:max-h-[640px]',
+          )}
+          style={useResponsive ? undefined : { maxHeight }}
+        >
+          {children}
+        </div>
       </div>
       {footer ? <div className="bg-bg-subtle/40 border-border border-t">{footer}</div> : null}
     </div>
@@ -34,7 +48,10 @@ export function TableShell({ className, maxHeight = 640, children, footer }: Tab
 
 export const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <table ref={ref} className={cn('w-full text-sm', className)} {...props} />
+    // min-w-[720px] keeps columns readable on mobile by triggering horizontal
+    // scroll inside TableShell instead of squishing every column to ~50px.
+    // On desktop the container is wider than 720, so w-full still wins.
+    <table ref={ref} className={cn('w-full min-w-[720px] text-sm', className)} {...props} />
   ),
 );
 Table.displayName = 'Table';
