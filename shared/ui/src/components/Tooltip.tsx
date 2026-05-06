@@ -42,10 +42,23 @@ export function Tooltip({
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<BubblePosition | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [touchOnly, setTouchOnly] = useState(false);
   const triggerRef = useRef<HTMLElement | null>(null);
   const id = useId();
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    // Hover-only tooltips don't work on touch devices. Suppress them on
+    // (hover: none) / (pointer: coarse) and rely on the visible label /
+    // hint text we already render alongside.
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      const mq = window.matchMedia('(hover: none), (pointer: coarse)');
+      setTouchOnly(mq.matches);
+      const onChange = (e: MediaQueryListEvent) => setTouchOnly(e.matches);
+      mq.addEventListener?.('change', onChange);
+      return () => mq.removeEventListener?.('change', onChange);
+    }
+  }, []);
 
   useIsoLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
@@ -67,7 +80,7 @@ export function Tooltip({
     };
   }, [open, side]);
 
-  if (disabled || !content) return <>{children}</>;
+  if (disabled || !content || touchOnly) return <>{children}</>;
 
   const handlers = {
     onMouseEnter: () => setOpen(true),

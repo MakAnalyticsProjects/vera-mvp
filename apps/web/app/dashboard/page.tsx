@@ -65,7 +65,9 @@ export default function DashboardOverview() {
   return (
     <div className="mx-auto max-w-7xl space-y-10">
       <section className="space-y-3 vera-rise">
-        <h1 className="font-display text-4xl tracking-tight md:text-5xl">Today&apos;s briefing</h1>
+        <h1 className="font-display text-3xl tracking-tight sm:text-4xl md:text-5xl">
+          Today&apos;s briefing
+        </h1>
         <VeraQuote>{briefing}</VeraQuote>
       </section>
 
@@ -122,23 +124,24 @@ export default function DashboardOverview() {
       </section>
 
       <section className="space-y-4 vera-rise-delay-3">
-        <div className="flex items-baseline justify-between">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-text-secondary text-sm tracking-[0.2em] uppercase">
             Top three I&apos;d look at first
           </h2>
           <Link
             href="/dashboard/follow-ups"
-            className="text-accent text-sm hover:underline"
+            className="text-accent shrink-0 whitespace-nowrap text-sm hover:underline"
           >
-            See all follow-ups →
+            <span className="sm:hidden">See all →</span>
+            <span className="hidden sm:inline">See all follow-ups →</span>
           </Link>
         </div>
         <div className="space-y-3">
           {topThree.map((job) => (
             <Card key={job.id} className="!py-5">
-              <div className="flex flex-wrap items-start justify-between gap-8">
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-8">
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="font-display truncate text-xl tracking-tight">
+                  <p className="font-display truncate text-lg tracking-tight sm:text-xl">
                     {job.address}
                   </p>
                   <p className="text-text-secondary text-sm">
@@ -149,7 +152,7 @@ export default function DashboardOverview() {
                     {formatUSD(job.balance)}
                   </p>
                 </div>
-                <div className="flex flex-col items-end gap-3">
+                <div className="flex flex-row items-center justify-between gap-3 sm:flex-col sm:items-end">
                   <AgingChip bucket={job.agingBucket} />
                   <HeatMeter
                     score={job.heatScore}

@@ -64,7 +64,34 @@ export function TablePagination({
         </span>
       </div>
 
-      <div className="flex items-center gap-1">
+      {/* Mobile: arrow Prev/Next + "page x of y" text. Saves a row vs the
+          desktop layout which shows the full page-number list. */}
+      <div className="flex items-center gap-1.5 sm:hidden">
+        <button
+          type="button"
+          onClick={() => canPrev && onPageChange(safePage - 1)}
+          disabled={!canPrev}
+          className="border-border bg-bg-card text-text-secondary hover:bg-bg-base hover:text-text-primary inline-flex h-8 w-8 items-center justify-center rounded-lg border disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </button>
+        <span className="text-text-secondary tabular-nums">
+          <span className="text-text-primary">{safePage}</span> of {totalPages}
+        </span>
+        <button
+          type="button"
+          onClick={() => canNext && onPageChange(safePage + 1)}
+          disabled={!canNext}
+          className="border-border bg-bg-card text-text-secondary hover:bg-bg-base hover:text-text-primary inline-flex h-8 w-8 items-center justify-center rounded-lg border disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Desktop: full page-number list. */}
+      <div className="hidden flex-wrap items-center justify-end gap-1 sm:flex">
         <button
           type="button"
           onClick={() => canPrev && onPageChange(safePage - 1)}

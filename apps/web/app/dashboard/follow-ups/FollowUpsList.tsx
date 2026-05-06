@@ -43,9 +43,9 @@ function FollowUpRow({ job, onOpen }: { job: ARJob; onOpen: () => void }) {
       className="!py-5 min-h-[200px] cursor-pointer transition-shadow hover:shadow-[0_4px_16px_-6px_rgba(31,27,22,0.08)]"
       onClick={onOpen}
     >
-      <div className="flex h-full flex-wrap items-start justify-between gap-6">
+      <div className="flex h-full flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="font-display truncate text-xl tracking-tight">{job.address}</p>
+          <p className="font-display truncate text-lg tracking-tight sm:text-xl">{job.address}</p>
           <p className="text-text-secondary text-sm">
             {job.rep?.name ?? 'Unassigned'} · {job.region ?? '—'} ·{' '}
             {job.isInsurance ? 'Insurance' : 'Retail'} · {job.daysSinceInstall} days post-install
@@ -82,7 +82,7 @@ function FollowUpRow({ job, onOpen }: { job: ARJob; onOpen: () => void }) {
           ) : null}
         </div>
         <div
-          className="flex flex-col items-end gap-3"
+          className="flex flex-row flex-wrap items-center justify-between gap-3 sm:flex-col sm:items-end"
           onClick={(e) => e.stopPropagation()}
         >
           <p className="font-display text-2xl tracking-tight tabular-nums">

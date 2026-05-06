@@ -173,13 +173,18 @@ export function FollowUpsView({ jobs }: { jobs: ARJob[] }) {
         />
       </section>
 
-      <div className="border-border flex items-end justify-between gap-3 border-b vera-rise-delay-2">
-        <div className="flex gap-1">
+      <div className="border-border flex flex-wrap items-end justify-between gap-3 border-b vera-rise-delay-2">
+        <div className="flex flex-wrap gap-1">
           <TabButton active={tab === 'follow-ups'} onClick={() => setTab('follow-ups')}>
-            Rep follow-ups · {hot.length}
+            <span className="whitespace-nowrap">Rep follow-ups · {hot.length}</span>
           </TabButton>
           <TabButton active={tab === 'queue'} onClick={() => setTab('queue')}>
-            Executive review queue · {critical.length}
+            <span className="whitespace-nowrap">
+              <span className="hidden sm:inline">Executive review queue</span>
+              <span className="sm:hidden">Exec queue</span>
+              {' · '}
+              {critical.length}
+            </span>
           </TabButton>
         </div>
         <div className="pb-2">

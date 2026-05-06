@@ -29,7 +29,12 @@ export function ChatPanel() {
     setMounted(true);
     if (typeof sessionStorage !== 'undefined') {
       const dismissed = sessionStorage.getItem(CALLOUT_KEY);
-      if (!dismissed) {
+      // Skip the auto-callout on narrow viewports — it crowds dashboard
+      // content (especially the scheduler form) on phones. Users can still
+      // tap the FAB itself.
+      const isMobile =
+        typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+      if (!dismissed && !isMobile) {
         const t = window.setTimeout(() => setShowCallout(true), 1400);
         return () => window.clearTimeout(t);
       }

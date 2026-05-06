@@ -48,9 +48,11 @@ export function FilterMenu({
 }: FilterMenuProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState<{ top: number; right: number } | null>(
-    null,
-  );
+  const [position, setPosition] = useState<{
+    top: number;
+    right: number;
+    fullWidth: boolean;
+  } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const id = useId();
@@ -63,9 +65,13 @@ export function FilterMenu({
       const el = wrapRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
+      // Below the sm breakpoint, anchor the popover edge-to-edge with 8px
+      // gutters so it fits inside the viewport instead of clipping off-screen.
+      const fullWidth = window.innerWidth < 640;
       setPosition({
         top: rect.bottom + 8,
         right: window.innerWidth - rect.right,
+        fullWidth,
       });
     };
     update();
@@ -126,12 +132,15 @@ export function FilterMenu({
             id={id}
             role="dialog"
             data-filter-popover
-            style={{
-              position: 'fixed',
-              top: position.top,
-              right: position.right,
-            }}
-            className="bg-bg-card border-border z-[200] max-h-[80vh] w-[360px] overflow-y-auto rounded-2xl border shadow-2xl"
+            style={
+              position.fullWidth
+                ? { position: 'fixed', top: position.top, left: 8, right: 8 }
+                : { position: 'fixed', top: position.top, right: position.right }
+            }
+            className={cn(
+              'bg-bg-card border-border z-[200] max-h-[80vh] overflow-y-auto rounded-2xl border shadow-2xl',
+              position.fullWidth ? 'w-auto' : 'w-[360px]',
+            )}
           >
             <div className="border-border bg-bg-subtle/60 sticky top-0 z-10 flex items-center justify-between border-b px-4 py-3 backdrop-blur">
               <p className="font-display text-sm font-medium tracking-tight">Filters</p>
