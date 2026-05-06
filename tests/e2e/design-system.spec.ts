@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Design system preview', () => {
   test('renders every Vera component', async ({ page }) => {
-    await page.goto('/dashboard/design');
+    await page.goto('/design');
 
-    await expect(page.getByRole('heading', { name: /Vera, in pieces/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Every component, every state/i })).toBeVisible();
 
     // Heat meter labels across all four bands appear.
     for (const label of ['COOL', 'WARM', 'HOT', 'CRITICAL']) {

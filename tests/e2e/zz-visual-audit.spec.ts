@@ -8,10 +8,11 @@ const ROUTES = [
   { path: '/dashboard/milestones', name: 'milestones' },
   { path: '/dashboard/follow-ups', name: 'follow-ups' },
   { path: '/dashboard/follow-ups?tab=queue', name: 'follow-ups-queue' },
-  { path: '/dashboard/rep-report', name: 'rep-report' },
-  { path: '/dashboard/rep-report?sort=heat', name: 'rep-report-heat' },
+  { path: '/dashboard/rep-leaderboard', name: 'rep-leaderboard' },
+  { path: '/dashboard/rep-leaderboard?metric=avgHeat', name: 'rep-leaderboard-heat' },
   { path: '/dashboard/reconciliation', name: 'reconciliation' },
-  { path: '/dashboard/design', name: 'design-system' },
+  { path: '/design', name: 'design-system' },
+  { path: '/docs', name: 'docs' },
 ];
 
 test.describe.configure({ mode: 'serial' });
