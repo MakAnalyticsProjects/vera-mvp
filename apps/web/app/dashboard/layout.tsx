@@ -15,29 +15,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="bg-bg-base min-h-screen">
       {/* Fixed sidebar */}
       <aside className="border-border bg-bg-card fixed top-0 left-0 z-20 hidden h-screen w-60 flex-col border-r md:flex">
-        <Link href="/" className="border-border block border-b px-6 py-6">
+        <Link
+          href="/"
+          className="border-border flex h-[84px] flex-col justify-center border-b px-6"
+        >
           <p className="text-text-muted text-[0.65rem] tracking-[0.25em] uppercase">
             Vera Calloway
           </p>
-          <p className="font-display mt-1 text-2xl tracking-tight">AR Studio</p>
+          <p className="font-display mt-1 text-2xl tracking-tight leading-none">
+            AR Studio
+          </p>
         </Link>
         <SidebarNav />
       </aside>
 
       {/* Main content */}
       <div className="md:ml-60">
-        <header className="border-border bg-bg-base/85 sticky top-0 z-10 flex items-center justify-between border-b px-8 py-5 backdrop-blur">
+        <header className="border-border bg-bg-base/85 sticky top-0 z-10 flex h-[84px] items-center border-b px-8 backdrop-blur">
           <div>
             <p className="text-text-muted text-[0.65rem] tracking-[0.2em] uppercase">
               Briefing for
             </p>
-            <p className="font-display text-xl tracking-tight">{asOfDate}</p>
-          </div>
-          <div className="text-text-secondary text-sm italic">
-            Vera is watching · 130 jobs in AR
+            <p className="font-display text-xl tracking-tight leading-none mt-1">
+              {asOfDate}
+            </p>
           </div>
         </header>
-        <main className="px-8 py-10">{children}</main>
+        <main className="px-8 pt-10 pb-32">{children}</main>
       </div>
       <ChatPanel />
     </div>

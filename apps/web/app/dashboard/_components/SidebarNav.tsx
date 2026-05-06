@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   AlertTriangle,
+  BookOpen,
   ClipboardCheck,
   GaugeCircle,
   Home,
   ListChecks,
+  LogOut,
   Trophy,
 } from 'lucide-react';
 
@@ -16,7 +18,7 @@ const NAV = [
   { href: '/dashboard/aging', label: 'Aging & anomalies', icon: AlertTriangle },
   { href: '/dashboard/milestones', label: 'Milestones', icon: ListChecks },
   { href: '/dashboard/follow-ups', label: 'Follow-ups', icon: GaugeCircle },
-  { href: '/dashboard/rep-report', label: 'Rep outstanding', icon: Trophy },
+  { href: '/dashboard/rep-leaderboard', label: 'Rep leaderboard', icon: Trophy },
   { href: '/dashboard/reconciliation', label: 'Reconciliation', icon: ClipboardCheck },
 ];
 
@@ -42,6 +44,23 @@ export function SidebarNav() {
           </Link>
         );
       })}
+
+      <div className="border-border mt-auto space-y-1 border-t pt-4">
+        <Link
+          href="/docs"
+          className="text-text-secondary hover:bg-bg-base hover:text-text-primary flex items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2 text-sm transition-colors"
+        >
+          <BookOpen className="h-4 w-4" />
+          How Vera works
+        </Link>
+        <Link
+          href="/"
+          className="text-text-secondary hover:bg-bg-base hover:text-text-primary flex items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2 text-sm transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          Log out
+        </Link>
+      </div>
     </nav>
   );
 }
