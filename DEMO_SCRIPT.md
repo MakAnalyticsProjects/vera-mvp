@@ -173,7 +173,7 @@ https://vera-mvp.vercel.app/dashboard/follow-ups?tab=queue  executive queue
 https://vera-mvp.vercel.app/dashboard/rep-report          leaderboard
 https://vera-mvp.vercel.app/dashboard/rep-report?sort=heat  by heat
 https://vera-mvp.vercel.app/dashboard/reconciliation      fell through cracks
-https://vera-mvp.vercel.app/dashboard/design              internal design system
+https://vera-mvp.vercel.app/design                        internal design system
 ```
 
 ## If something breaks during the demo

@@ -44,7 +44,7 @@ Open [`tests/e2e/`](./tests/e2e) — every dashboard route has its own spec.
 - `/dashboard/follow-ups` — heat-scored queue + Executive Review tab
 - `/dashboard/rep-report` — leaderboard with sort/filter chips
 - `/dashboard/reconciliation` — "fell through cracks" weekly sweep
-- `/dashboard/design` — internal component preview
+- `/design` — internal component preview
 
 API:
 - `GET /api/jobs/{aging,milestones,follow-ups,reconciliation}`
