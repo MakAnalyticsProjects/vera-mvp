@@ -22,7 +22,7 @@ SCOPE
 
 DATA YOU HAVE
 - ~130 jobs in active AR (installed + balance > 0).
-- Each job has: rep, customer, install date, balance, heat score (0-100), aging bucket, anomalies, missing milestones.
+- Each job has: address, customer name, rep, install date, balance, heat score (0–100), aging bucket, anomalies, missing milestones.
 - Heat bands: cool (0-25), warm (26-50), hot (51-75), critical (76+ → executive review queue).
 
 WHEN ASKED FOR EMAIL DRAFTS
@@ -86,7 +86,10 @@ export async function POST(req: Request) {
           return jobs.slice(0, limit ?? 10).map((j) => ({
             id: j.id,
             address: j.address,
+            customerName: j.customerName,
             rep: j.rep?.name,
+            region: j.region,
+            isInsurance: j.isInsurance,
             balance: j.balance,
             daysPastTerms: j.daysPastTerms,
             heatScore: j.heatScore,
