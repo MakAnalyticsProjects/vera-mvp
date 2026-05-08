@@ -212,7 +212,7 @@ flowchart LR
 
 | Workflow | Schedule | What it does |
 |---|---|---|
-| `cron-dispatch-briefs.yml` | `*/15 * * * *` | Polls for due `Schedule` rows and fires the email for each. |
+| `cron-dispatch-briefs.yml` | `7,22,37,52 * * * *` | Polls for due `Schedule` rows and fires the email for each. Staggered off the round-minute boundary on purpose — GitHub queues `*/N` crons globally and round minutes (`:00 :15 :30 :45`) are heavily contended. |
 | `cron-generate-briefings.yml` | `0 12 * * 1-5` | Regenerates the AI dashboard briefing for each tenant (≈7am Central). |
 
 GitHub-cron drift is normal (1–3 min typical, occasionally up to 15 min during
