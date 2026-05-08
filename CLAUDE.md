@@ -232,6 +232,24 @@ If you change a module, run its spec. If it fails, fix the spec or the code — 
 
 ## Git & commits
 
+- **Author identity (mandatory).** This repo is owned by the
+  `adityauphade-mac` GitHub user. Every commit must be authored by:
+  - **Name:** `adityauphade-mac`
+  - **Email:** `adityauphade@makanalytics.org`
+
+  Before committing in a fresh worktree or environment, verify with:
+  ```bash
+  git config user.name   # must print: adityauphade-mac
+  git config user.email  # must print: adityauphade@makanalytics.org
+  ```
+  If either is wrong (e.g. shows `aditya.uphade@levich.co`), fix locally:
+  ```bash
+  git config user.name "adityauphade-mac"
+  git config user.email "adityauphade@makanalytics.org"
+  ```
+  The `levich.co` identity belongs to a different account and must NEVER
+  appear as commit author on this repo.
+
 - Branch names: `feat/<short>`, `fix/<short>`, `chore/<short>`.
 - Commit messages: short imperative ("add aging bucket logic"). No emojis. No "Co-Authored-By" unless explicitly asked.
 - Each commit should leave the repo in a building, type-checking, lint-clean state.
