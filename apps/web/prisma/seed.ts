@@ -20,13 +20,11 @@ async function main() {
       briefingTimezone: 'America/Chicago',
     },
   });
-  // eslint-disable-next-line no-console
   console.log('Seeded tenant:', tenant);
 }
 
 main()
   .catch((e) => {
-    // eslint-disable-next-line no-console
     console.error(e);
     process.exit(1);
   })

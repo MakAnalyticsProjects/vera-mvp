@@ -14,7 +14,7 @@ import { authConfig } from '@/lib/auth.config';
  */
 // Auth.js v5 has TS inference quirks in monorepo workspaces; the cast lets
 // us name the export's type without dragging in a non-portable reference.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const { auth } = NextAuth(authConfig) as { auth: any };
 
 const middleware = auth((req: { nextUrl: URL; auth?: { user?: { email?: string } }; url: string }) => {

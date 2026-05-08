@@ -22,7 +22,6 @@ import {
   type PageSize,
   TableShell,
   TableToolbar,
-  Tooltip,
   VeraQuote,
 } from '@vera/ui';
 import { formatUSD } from '@vera/utils';

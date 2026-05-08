@@ -23,7 +23,7 @@ const TENANT_ID_FALLBACK = 1;
 // Wrap the destructure so TypeScript infers a non-portable type name from
 // our re-exports. Auth.js v5 has known TS inference quirks in monorepo
 // workspaces; this pattern sidesteps them.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const _nextAuth: any = NextAuth({
   ...authConfig,
   callbacks: {
@@ -58,7 +58,6 @@ const _nextAuth: any = NextAuth({
       } catch (e) {
         // DB not yet provisioned — log and let sign-in proceed; the session
         // will lack tenantId until DATABASE_URL is set, but auth still works.
-        // eslint-disable-next-line no-console
         console.warn('[auth] user upsert failed:', e);
       }
       return true;

@@ -217,7 +217,6 @@ export function buildDailyBrief(
   });
 
   const sixtyPlus = bucketSummary.find((b) => b.bucket === '60-plus-past');
-  const thirtyToSixty = bucketSummary.find((b) => b.bucket === '31-60-past');
   const oneToThirty = bucketSummary.find((b) => b.bucket === '1-30-past');
 
   // --- Top critical jobs ----------------------------------------------

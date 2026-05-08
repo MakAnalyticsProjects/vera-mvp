@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQueryState, parseAsInteger, parseAsArrayOf, parseAsString } from 'nuqs';
 import { AlertTriangle } from 'lucide-react';
 import {
