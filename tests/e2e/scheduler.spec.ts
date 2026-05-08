@@ -6,12 +6,8 @@ test.describe('Scheduler', () => {
     await signInAs(context);
   });
 
-  test('renders the preview banner, header, and three reports', async ({ page }) => {
+  test('renders header and three reports', async ({ page }) => {
     await page.goto('/dashboard/scheduler');
-    // Banner
-    await expect(
-      page.getByText(/Preview of the scheduling experience/i),
-    ).toBeVisible();
     // Header
     await expect(
       page.getByRole('heading', { name: /When Vera reports/i }),
@@ -20,6 +16,10 @@ test.describe('Scheduler', () => {
     await expect(page.getByText('Daily AR brief', { exact: true })).toBeVisible();
     await expect(page.getByText('Weekly summary', { exact: true })).toBeVisible();
     await expect(page.getByText('Monthly close', { exact: true })).toBeVisible();
+    // The "preview" banner is gone — schedules are real now.
+    await expect(
+      page.getByText(/Preview of the scheduling experience/i),
+    ).toHaveCount(0);
   });
 
   test('shows the highlights section with all six toggles', async ({ page }) => {
@@ -54,13 +54,11 @@ test.describe('Scheduler', () => {
     await expect(page.getByRole('link', { name: /Scheduler/i })).toBeVisible();
   });
 
-  test('each report row has a disabled Schedule button next to Send now', async ({
-    page,
-  }) => {
+  test('each report row has a Schedule button alongside Send now', async ({ page }) => {
     await page.goto('/dashboard/scheduler');
     const scheduleButtons = page.getByRole('button', { name: /^Schedule$/ });
     await expect(scheduleButtons).toHaveCount(3);
-    // All Schedule buttons are disabled (preview only)
+    // Schedule is gated on a valid recipient — disabled until one is entered.
     for (let i = 0; i < 3; i++) {
       await expect(scheduleButtons.nth(i)).toBeDisabled();
     }
