@@ -1,12 +1,19 @@
 import Link from 'next/link';
 import { VeraAvatar } from '@vera/ui';
 import { getData } from '@/lib/data';
+import { auth } from '@/lib/auth';
 import { ChatPanel } from './_components/ChatPanel';
 import { MobileNav } from './_components/MobileNav';
 import { SidebarNav } from './_components/SidebarNav';
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { asOf } = getData();
+  const session = await auth();
+  const firstName = session?.user?.name?.split(' ')[0] ?? null;
   const asOfDate = new Date(asOf).toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -39,7 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="border-border bg-bg-base/85 sticky top-0 z-10 flex h-[84px] items-center justify-between gap-3 border-b px-4 backdrop-blur sm:px-6 md:px-8">
           <div className="min-w-0">
             <p className="text-text-muted text-[0.65rem] tracking-[0.2em] uppercase">
-              Briefing for
+              {firstName ? `Briefing for ${firstName}` : 'Briefing for'}
             </p>
             <p className="font-display mt-1 truncate text-lg tracking-tight leading-none sm:text-xl">
               {asOfDate}
@@ -47,7 +54,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <MobileNav />
         </header>
-        <main className="px-4 pt-8 pb-32 sm:px-6 sm:pt-10 md:px-8">{children}</main>
+        <main className="vera-page-fade px-4 pt-8 pb-32 sm:px-6 sm:pt-10 md:px-8">
+          {children}
+        </main>
       </div>
       <ChatPanel />
     </div>

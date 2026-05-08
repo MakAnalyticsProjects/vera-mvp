@@ -5,13 +5,68 @@ import {
   DonutChart,
   HeatMeter,
   MetricTile,
-  VeraQuote,
 } from '@vera/ui';
 import { formatUSD } from '@vera/utils';
 import { getData } from '@/lib/data';
+import { BriefingCard, type AIBriefing, type BriefingSource } from './_components/BriefingCard';
+import { db } from '@/lib/db';
 
-export default function DashboardOverview() {
+const TENANT_ID_FALLBACK = 1;
+
+interface BriefingKeyJobsBlob {
+  topCritical?: unknown;
+  sources?: {
+    nws?: Array<{ event?: string; headline?: string; severity?: string; area?: string; url?: string }>;
+    news?: Array<{ title?: string; source?: string; url?: string }>;
+  };
+}
+
+async function getLatestBriefing(): Promise<AIBriefing | null> {
+  // Reads the most recent briefing for the (single, hardcoded) tenant.
+  // Wrapped in try/catch so the page never breaks if the DB is down.
+  try {
+    const latest = await db.briefing.findFirst({
+      where: { tenantId: TENANT_ID_FALLBACK },
+      orderBy: { generatedAt: 'desc' },
+    });
+    if (!latest) return null;
+
+    const blob = (latest.keyJobs ?? {}) as BriefingKeyJobsBlob;
+    const sources: BriefingSource[] = [];
+    for (const a of blob.sources?.nws ?? []) {
+      if (!a) continue;
+      sources.push({
+        type: 'nws',
+        label: a.event ?? a.headline ?? 'NWS alert',
+        detail: a.severity ?? undefined,
+        url: a.url ?? undefined,
+      });
+    }
+    for (const h of blob.sources?.news ?? []) {
+      if (!h) continue;
+      sources.push({
+        type: 'news',
+        label: h.title ?? '',
+        detail: h.source ?? undefined,
+        url: h.url ?? undefined,
+      });
+    }
+
+    return {
+      headline: latest.headline,
+      bodyMd: latest.bodyMd,
+      sources,
+      generatedAt: latest.generatedAt.toISOString(),
+      model: latest.model ?? 'gpt-4o',
+    };
+  } catch {
+    return null;
+  }
+}
+
+export default async function DashboardOverview() {
   const { jobs, totalAR } = getData();
+  const latestBriefing = await getLatestBriefing();
 
   const critical = jobs.filter((j) => j.heatBand === 'critical');
   const hot = jobs.filter((j) => j.heatBand === 'hot');
@@ -23,13 +78,6 @@ export default function DashboardOverview() {
   ).size;
 
   const topThree = [...jobs].sort((a, b) => b.heatScore - a.heatScore).slice(0, 3);
-
-  const briefing = composeBriefing({
-    critical: critical.length,
-    hot: hot.length,
-    fellThrough: fellThrough.length,
-    topJob: topThree[0],
-  });
 
   const heatBands = [
     {
@@ -68,7 +116,7 @@ export default function DashboardOverview() {
         <h1 className="font-display text-3xl tracking-tight sm:text-4xl md:text-5xl">
           Today&apos;s briefing
         </h1>
-        <VeraQuote>{briefing}</VeraQuote>
+        <BriefingCard initialAi={latestBriefing} canFetch={true} />
       </section>
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4 vera-rise-delay-1">
@@ -170,39 +218,3 @@ export default function DashboardOverview() {
   );
 }
 
-function composeBriefing({
-  critical,
-  hot,
-  fellThrough,
-  topJob,
-}: {
-  critical: number;
-  hot: number;
-  fellThrough: number;
-  topJob: { address: string; rep: { name: string } | null } | undefined;
-}): string {
-  const opener =
-    critical === 0
-      ? 'Good morning. The critical queue is clear today, which is rare and worth noticing.'
-      : `Good morning. ${critical} ${critical === 1 ? 'job is' : 'jobs are'} in the critical band — the executive review queue is where I'd start.`;
-
-  const middle =
-    hot === 0
-      ? ''
-      : ` ${hot} more ${hot === 1 ? 'is' : 'are'} hot enough that I'll draft follow-ups for the reps today.`;
-
-  const top = topJob
-    ? ` Right now ${topJob.address} is at the top of my list${
-        topJob.rep ? ` — that's ${topJob.rep.name}'s` : ''
-      }.`
-    : '';
-
-  const tail =
-    fellThrough === 0
-      ? ''
-      : ` And ${fellThrough} ${
-          fellThrough === 1 ? 'job seems to' : 'jobs seem to'
-        } have fallen through cracks since the last sweep — worth a look this week.`;
-
-  return opener + middle + top + tail;
-}
