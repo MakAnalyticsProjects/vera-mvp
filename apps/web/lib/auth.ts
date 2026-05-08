@@ -1,5 +1,5 @@
 import NextAuth from 'next-auth';
-import Google from 'next-auth/providers/google';
+import { authConfig } from '@/lib/auth.config';
 import { db } from '@/lib/db';
 
 /**
@@ -25,18 +25,7 @@ const TENANT_ID_FALLBACK = 1;
 // workspaces; this pattern sidesteps them.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _nextAuth: any = NextAuth({
-  providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
-  ],
-  pages: {
-    signIn: '/login',
-  },
-  session: {
-    strategy: 'jwt',
-  },
+  ...authConfig,
   callbacks: {
     async signIn({ user, account }) {
       if (!user.email) return false;

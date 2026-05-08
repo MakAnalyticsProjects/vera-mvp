@@ -1,37 +1,36 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { auth } from '@/lib/auth';
+import NextAuth from 'next-auth';
+import { NextResponse } from 'next/server';
+import { authConfig } from '@/lib/auth.config';
 
 /**
- * Protects everything under /dashboard. Unauthenticated requests are
- * redirected to /login with a `?callbackUrl=` so we bounce them back after
- * sign-in.
+ * Edge-safe middleware. Uses the lightweight auth.config.ts (no DB,
+ * no Prisma) so the bundle stays under the 1 MB Edge limit. The full
+ * Auth.js setup with DB callbacks lives in lib/auth.ts and runs only
+ * in API routes / server components.
  *
- * /api/cron/* is protected by CRON_SECRET (separate gate).
- * /api/auth/* is the auth handlers themselves.
+ * Protects everything under /dashboard. Unauthenticated requests are
+ * redirected to /login with a `?callbackUrl=` so we bounce them back
+ * after sign-in.
  */
+// Auth.js v5 has TS inference quirks in monorepo workspaces; the cast lets
+// us name the export's type without dragging in a non-portable reference.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const { auth } = NextAuth(authConfig) as { auth: any };
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+const middleware = auth((req: { nextUrl: URL; auth?: { user?: { email?: string } }; url: string }) => {
+  const { pathname } = req.nextUrl;
   if (!pathname.startsWith('/dashboard')) {
     return NextResponse.next();
   }
-
-  let session = null;
-  try {
-    session = await auth();
-  } catch {
-    // Auth not configured (e.g. local dev without secrets) — treat as
-    // signed-out and redirect.
-  }
-
-  if (!session?.user?.email) {
-    const loginUrl = new URL('/login', request.url);
+  if (!req.auth?.user?.email) {
+    const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
   }
-
   return NextResponse.next();
-}
+});
+
+export default middleware;
 
 export const config = {
   matcher: ['/dashboard/:path*'],
