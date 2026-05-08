@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { computeNextRun, type Cadence } from '@/lib/cadence';
+import { sendBrief } from '@/app/api/brief/send/route';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -113,28 +114,24 @@ export async function POST(req: Request) {
     }
 
     // ── Step 2: We own this dispatch. Fire the email. ────────────────
-    let outcome: { status: 'sent'; resendId?: string; pdfBytes?: number } | { status: 'failed'; error: string };
+    // Call sendBrief in-process instead of doing an HTTP roundtrip —
+    // avoids Vercel's deployment protection on hashed preview URLs and
+    // skips the auth round-trip we'd otherwise need.
+    let outcome:
+      | { status: 'sent'; resendId?: string; pdfBytes?: number }
+      | { status: 'failed'; error: string };
     try {
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : 'http://localhost:3000';
-
-      const res = await fetch(`${baseUrl}/api/brief/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: sch.recipient,
-          cadence: sch.cadence,
-        }),
+      const r = await sendBrief({
+        to: sch.recipient,
+        cadence: sch.cadence as Cadence,
       });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      if (r.ok) {
+        outcome = { status: 'sent', resendId: r.id, pdfBytes: r.pdfBytes };
+      } else {
         outcome = {
           status: 'failed',
-          error: body?.error?.message ?? `HTTP ${res.status}`,
+          error: `${r.code}: ${r.message}`,
         };
-      } else {
-        outcome = { status: 'sent', resendId: body.id, pdfBytes: body.pdfBytes };
       }
     } catch (e) {
       outcome = {

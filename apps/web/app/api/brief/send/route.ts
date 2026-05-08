@@ -88,20 +88,100 @@ function markdownToHtml(
   }
 }
 
-export async function POST(req: Request) {
+/**
+ * Build + send a brief in-process. Used by both the HTTP route below and
+ * the cron dispatcher (which avoids the HTTP roundtrip + Vercel deployment
+ * protection on hashed preview URLs).
+ */
+export type SendBriefInput = {
+  to: string;
+  sendAt?: string;
+  cadence?: 'daily' | 'weekly' | 'monthly';
+};
+
+export type SendBriefResult =
+  | {
+      ok: true;
+      id: string;
+      scheduledFor: string | null;
+      subject: string;
+      pdfBytes: number;
+    }
+  | {
+      ok: false;
+      status: number;
+      code: string;
+      message: string;
+    };
+
+export async function sendBrief(input: SendBriefInput): Promise<SendBriefResult> {
   if (!isEmailConfigured()) {
-    return NextResponse.json(
-      {
-        error: {
-          code: 'email_not_configured',
-          message:
-            'Resend is not configured. Set RESEND_API_KEY in the environment.',
-        },
-      },
-      { status: 503 },
-    );
+    return {
+      ok: false,
+      status: 503,
+      code: 'email_not_configured',
+      message: 'Resend is not configured. Set RESEND_API_KEY in the environment.',
+    };
   }
 
+  const { to, sendAt, cadence = 'daily' } = input;
+  const { jobs } = getData();
+  const now = new Date();
+  const brief = buildDailyBrief(jobs, now, cadence);
+
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await renderDailyBriefPDF(brief.data);
+  } catch (e) {
+    return {
+      ok: false,
+      status: 500,
+      code: 'pdf_failed',
+      message: e instanceof Error ? e.message : 'PDF generation failed',
+    };
+  }
+
+  const dateStamp = now.toISOString().slice(0, 10);
+  const filename = `vera-${cadence}-ar-brief-${dateStamp}.pdf`;
+
+  const result = await sendEmail({
+    to,
+    subject: brief.subject,
+    html: markdownToHtml(brief.markdown, {
+      title: brief.data.briefTitle,
+      subtitle: brief.data.briefSubtitle,
+    }),
+    attachments: [{ filename, content: pdfBuffer }],
+    scheduledAt: sendAt,
+  });
+
+  if (!result.ok) {
+    if (result.reason === 'not_configured') {
+      return {
+        ok: false,
+        status: 503,
+        code: 'email_not_configured',
+        message: 'Resend not configured.',
+      };
+    }
+    return {
+      ok: false,
+      status: 502,
+      code: 'send_failed',
+      message: result.message,
+    };
+  }
+
+  return {
+    ok: true,
+    id: result.id,
+    scheduledFor: result.scheduledAt,
+    subject: brief.subject,
+    pdfBytes: pdfBuffer.byteLength,
+  };
+}
+
+export async function POST(req: Request) {
   let body: unknown;
   try {
     body = await req.json();
@@ -125,58 +205,20 @@ export async function POST(req: Request) {
     );
   }
 
-  const { to, sendAt, cadence = 'daily' } = parsed.data;
-  const { jobs } = getData();
-  const now = new Date();
-  const brief = buildDailyBrief(jobs, now, cadence);
-
-  let pdfBuffer: Buffer;
-  try {
-    pdfBuffer = await renderDailyBriefPDF(brief.data);
-  } catch (e) {
-    return NextResponse.json(
-      {
-        error: {
-          code: 'pdf_failed',
-          message: e instanceof Error ? e.message : 'PDF generation failed',
-        },
-      },
-      { status: 500 },
-    );
-  }
-
-  const dateStamp = now.toISOString().slice(0, 10); // YYYY-MM-DD
-  const filename = `vera-${cadence}-ar-brief-${dateStamp}.pdf`;
-
-  const result = await sendEmail({
-    to,
-    subject: brief.subject,
-    html: markdownToHtml(brief.markdown, {
-      title: brief.data.briefTitle,
-      subtitle: brief.data.briefSubtitle,
-    }),
-    attachments: [{ filename, content: pdfBuffer }],
-    scheduledAt: sendAt,
-  });
+  const result = await sendBrief(parsed.data);
 
   if (!result.ok) {
-    if (result.reason === 'not_configured') {
-      return NextResponse.json(
-        { error: { code: 'email_not_configured', message: 'Resend not configured.' } },
-        { status: 503 },
-      );
-    }
     return NextResponse.json(
-      { error: { code: 'send_failed', message: result.message } },
-      { status: 502 },
+      { error: { code: result.code, message: result.message } },
+      { status: result.status },
     );
   }
 
   return NextResponse.json({
     id: result.id,
-    scheduledFor: result.scheduledAt,
-    subject: brief.subject,
-    pdfBytes: pdfBuffer.byteLength,
-    to,
+    scheduledFor: result.scheduledFor,
+    subject: result.subject,
+    pdfBytes: result.pdfBytes,
+    to: parsed.data.to,
   });
 }
