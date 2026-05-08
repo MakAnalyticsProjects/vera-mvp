@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertCircle, CalendarClock, CheckCircle2, Send } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CalendarClock, CheckCircle2, Send } from 'lucide-react';
 import {
   Button,
   Card,
@@ -12,6 +12,7 @@ import {
   SelectValue,
   Switch,
   TimePicker,
+  Tooltip,
 } from '@vera/ui';
 
 /**
@@ -392,6 +393,26 @@ export function SchedulerView() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-10">
+      {/* Cron reliability advisory — see notes in OPERATIONS.md. */}
+      <div
+        role="status"
+        className="border-heat-warm/40 bg-heat-warm/5 vera-rise flex items-start gap-3 rounded-2xl border px-5 py-4"
+      >
+        <AlertTriangle className="text-heat-warm mt-0.5 h-4 w-4 shrink-0" />
+        <div className="space-y-1">
+          <p className="text-text-primary text-sm font-medium">
+            Automatic dispatch may be delayed
+          </p>
+          <p className="text-text-secondary text-xs leading-relaxed">
+            We rely on GitHub Actions cron for recurring sends. New
+            workflows can sit in a multi-hour onboarding throttle before the
+            first auto-fire. Scheduled rows here will queue and send the
+            moment GitHub picks them up. For guaranteed immediate delivery,
+            use <strong>Send now</strong>.
+          </p>
+        </div>
+      </div>
+
       {/* Header */}
       <header className="vera-rise space-y-3">
         <p className="text-text-muted text-xs tracking-[0.2em] uppercase">
@@ -512,6 +533,12 @@ function ReportRow({
   const meta = REPORT_META[report.id];
   const tzLabel = tzAbbreviation(timezone);
   const cadenceLine = describeCadence(report, tzLabel);
+  // When the row's switch is off, the recurring-schedule fields and the
+  // Schedule button lock. Send Now stays enabled because it doesn't read
+  // those fields — it sends with the current recipient and cadence
+  // immediately. Recipient stays editable so an ad-hoc Send Now still
+  // works.
+  const locked = !report.enabled;
   const recipientValid = report.recipient ? isValidEmail(report.recipient) : true;
 
   return (
@@ -557,31 +584,40 @@ function ReportRow({
         <div className="border-border bg-bg-base/40 grid grid-cols-1 gap-4 rounded-2xl border p-4 md:grid-cols-3">
           {report.id === 'weekly' ? (
             <Field label="Day of week">
-              <ShadcnSelect
-                value={report.cadenceValue ?? '1'}
-                onChange={(v) => onChange({ cadenceValue: v })}
-                options={DAY_OF_WEEK_OPTIONS}
-                ariaLabel="Day of week"
-              />
+              <LockedHint locked={locked}>
+                <ShadcnSelect
+                  value={report.cadenceValue ?? '1'}
+                  onChange={(v) => onChange({ cadenceValue: v })}
+                  options={DAY_OF_WEEK_OPTIONS}
+                  ariaLabel="Day of week"
+                  disabled={locked}
+                />
+              </LockedHint>
             </Field>
           ) : null}
           {report.id === 'monthly' ? (
             <Field label="Day of month">
-              <ShadcnSelect
-                value={report.cadenceValue ?? 'last'}
-                onChange={(v) => onChange({ cadenceValue: v })}
-                options={DAY_OF_MONTH_OPTIONS}
-                ariaLabel="Day of month"
-              />
+              <LockedHint locked={locked}>
+                <ShadcnSelect
+                  value={report.cadenceValue ?? 'last'}
+                  onChange={(v) => onChange({ cadenceValue: v })}
+                  options={DAY_OF_MONTH_OPTIONS}
+                  ariaLabel="Day of month"
+                  disabled={locked}
+                />
+              </LockedHint>
             </Field>
           ) : null}
 
           <Field label="Time (your local time)">
-            <TimePicker
-              value={report.time}
-              onChange={(v) => onChange({ time: v })}
-              ariaLabel={`Time for ${REPORT_META[report.id].title}`}
-            />
+            <LockedHint locked={locked}>
+              <TimePicker
+                value={report.time}
+                onChange={(v) => onChange({ time: v })}
+                ariaLabel={`Time for ${REPORT_META[report.id].title}`}
+                disabled={locked}
+              />
+            </LockedHint>
           </Field>
 
           <Field
@@ -644,21 +680,24 @@ function ReportRow({
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={onSchedule}
-              disabled={
-                !report.recipient ||
-                !recipientValid ||
-                scheduleOutcome.kind === 'pending'
-              }
-            >
-              <CalendarClock className="mr-2 h-3.5 w-3.5" />
-              <span className="whitespace-nowrap">
-                {scheduleOutcome.kind === 'pending' ? 'Scheduling…' : 'Schedule'}
-              </span>
-            </Button>
+            <LockedHint locked={locked}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onSchedule}
+                disabled={
+                  locked ||
+                  !report.recipient ||
+                  !recipientValid ||
+                  scheduleOutcome.kind === 'pending'
+                }
+              >
+                <CalendarClock className="mr-2 h-3.5 w-3.5" />
+                <span className="whitespace-nowrap">
+                  {scheduleOutcome.kind === 'pending' ? 'Scheduling…' : 'Schedule'}
+                </span>
+              </Button>
+            </LockedHint>
             <Button
               type="button"
               onClick={onSendNow}
@@ -731,19 +770,50 @@ function Field({
   );
 }
 
+/**
+ * Shows a tooltip explaining why an input is locked when the row's
+ * enabled-switch is off. Disabled HTML elements don't fire pointer
+ * events, so the wrapper `<span>` is the hover target — same trick the
+ * Radix docs recommend for tooltipped-but-disabled buttons.
+ *
+ * When `locked` is false this is a passthrough — no tooltip rendered, no
+ * extra DOM noise.
+ */
+function LockedHint({
+  locked,
+  children,
+}: {
+  locked: boolean;
+  children: React.ReactNode;
+}) {
+  if (!locked) return <>{children}</>;
+  return (
+    <Tooltip
+      content="Enable this row above to schedule. Send now still works while paused."
+      side="top"
+      block
+      triggerClassName="cursor-not-allowed"
+    >
+      {children}
+    </Tooltip>
+  );
+}
+
 function ShadcnSelect({
   value,
   onChange,
   options,
   ariaLabel,
+  disabled = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: Array<{ value: string; label: string }>;
   ariaLabel: string;
+  disabled?: boolean;
 }) {
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger aria-label={ariaLabel}>
         <SelectValue />
       </SelectTrigger>

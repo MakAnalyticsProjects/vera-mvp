@@ -28,18 +28,21 @@ export function TimePicker({
   className,
   ariaLabel,
   stepMinutes = 15,
+  disabled = false,
 }: {
   value: string;
   onChange: (next: string) => void;
   className?: string;
   ariaLabel?: string;
   stepMinutes?: number;
+  disabled?: boolean;
 }) {
   return (
     <input
       type="time"
       aria-label={ariaLabel ?? 'Time'}
       value={value}
+      disabled={disabled}
       // Pass-through during typing so the user can edit freely.
       onChange={(e) => onChange(e.target.value)}
       // Snap when the user is done editing. Idempotent — already-snapped
@@ -50,7 +53,7 @@ export function TimePicker({
       }}
       step={stepMinutes * 60}
       className={
-        'border-border bg-bg-card text-text-primary focus:border-accent w-full appearance-none rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors tabular-nums [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none ' +
+        'border-border bg-bg-card text-text-primary focus:border-accent w-full appearance-none rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors tabular-nums disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none ' +
         (className ?? '')
       }
     />
