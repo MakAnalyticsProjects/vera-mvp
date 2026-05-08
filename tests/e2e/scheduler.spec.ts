@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 test.describe('Scheduler', () => {
+  test.beforeEach(async ({ context }) => {
+    await signInAs(context);
+  });
+
   test('renders the preview banner, header, and three reports', async ({ page }) => {
     await page.goto('/dashboard/scheduler');
     // Banner

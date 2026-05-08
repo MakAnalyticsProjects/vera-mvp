@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 test.describe('Milestones report', () => {
+  test.beforeEach(async ({ context }) => {
+    await signInAs(context);
+  });
+
   test('renders header, narrative, and metric tiles', async ({ page }) => {
     await page.goto('/dashboard/milestones');
     await expect(

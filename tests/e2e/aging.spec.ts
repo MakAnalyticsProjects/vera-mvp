@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 test.describe('Aging & anomalies', () => {
+  test.beforeEach(async ({ context }) => {
+    await signInAs(context);
+  });
+
   test('renders bucket tiles, table and anomaly side panel', async ({ page }) => {
     await page.goto('/dashboard/aging');
     await expect(

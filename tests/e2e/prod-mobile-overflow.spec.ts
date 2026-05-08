@@ -1,15 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { signInAs } from './_helpers/auth';
 
 /**
- * Mobile overflow regression. At 375px viewport width every route must
- * keep its document scrollWidth within the viewport — otherwise the page
- * scrolls horizontally, which is the symptom of a mobile-broken layout.
+ * Production-only mobile-overflow regression. Ad-hoc spec — pointed at the
+ * deployed URL via PLAYWRIGHT_PROD_URL. Asserts no horizontal page overflow
+ * at 375px on every public route.
  */
 
-test.beforeEach(async ({ context }) => {
-  await signInAs(context);
-});
+const PROD = process.env.PLAYWRIGHT_PROD_URL ?? 'https://vera-mvp.vercel.app';
 
 const ROUTES = [
   '/',
@@ -25,15 +22,15 @@ const ROUTES = [
 ];
 
 for (const path of ROUTES) {
-  test(`mobile · no horizontal page overflow at 375px · ${path}`, async ({ page }) => {
+  test(`prod · 375px no overflow · ${path}`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 900 });
-    await page.goto(path, { waitUntil: 'networkidle' });
+    await page.goto(`${PROD}${path}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(400);
     const dims = await page.evaluate(() => ({
       docW: document.documentElement.scrollWidth,
       viewW: window.innerWidth,
     }));
-    expect(dims.docW, `document.scrollWidth must not exceed viewport`).toBeLessThanOrEqual(
+    expect(dims.docW, `${path} document.scrollWidth must not exceed viewport`).toBeLessThanOrEqual(
       dims.viewW,
     );
   });

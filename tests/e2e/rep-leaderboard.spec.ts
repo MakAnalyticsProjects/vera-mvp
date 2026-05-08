@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 test.describe('Rep leaderboard', () => {
+  test.beforeEach(async ({ context }) => {
+    await signInAs(context);
+  });
+
   test('renders leaderboard, top-10 chart, and metric tiles', async ({ page }) => {
     await page.goto('/dashboard/rep-leaderboard');
     await expect(

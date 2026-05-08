@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 test.describe('Tooltips', () => {
+  test.beforeEach(async ({ context }) => {
+    await signInAs(context);
+  });
+
   test('aging chip in a table row shows tooltip via portal', async ({ page }) => {
     await page.goto('/dashboard/aging?bucket=60-plus-past');
     await page.waitForTimeout(800);

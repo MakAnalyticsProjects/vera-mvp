@@ -1,6 +1,21 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 test.describe('Chat panel', () => {
+  test.beforeEach(async ({ context, page }) => {
+    await signInAs(context);
+    // Mock /api/chat so we don't burn a real Claude call. None of these specs
+    // actually send a message, but if they ever do, this stub returns an
+    // empty assistant turn quickly.
+    await page.route('**/api/chat', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/plain',
+        body: '',
+      });
+    });
+  });
+
   test('opens and shows suggestions', async ({ page }) => {
     await page.goto('/dashboard');
 
