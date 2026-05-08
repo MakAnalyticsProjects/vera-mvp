@@ -5,12 +5,14 @@ import {
   BookOpen,
   ClipboardCheck,
   GaugeCircle,
+  KeyRound,
   ListChecks,
   MessageCircle,
   Palette,
   Trophy,
 } from 'lucide-react';
 import { Button, VeraQuote } from '@vera/ui';
+import { auth } from '@/lib/auth';
 
 const FEATURES = [
   {
@@ -29,7 +31,7 @@ const FEATURES = [
     icon: GaugeCircle,
     cadence: 'Daily',
     title: 'Rep follow-ups',
-    body: 'I score every job from 0–100 and surface a draft email for the rep to send. Anything that crosses 76 jumps onto the executive review queue. I never send mail myself; you stay in control.',
+    body: 'I score every job from 0–100 and surface a draft email for the rep to send. Anything that crosses 76 jumps onto the executive review queue. Rep mail stays drafts — you review and send.',
   },
   {
     icon: Trophy,
@@ -51,7 +53,18 @@ const FEATURES = [
   },
 ];
 
-export default function Landing() {
+export default async function Landing() {
+  // The CTA copy depends on whether the visitor already has a session.
+  // Signed-in: "Open the dashboard" (they go straight there).
+  // Signed-out: "Sign in" (clicking still routes to /dashboard, which the
+  // middleware bounces to /login?callbackUrl=/dashboard — same destination,
+  // honest label).
+  const session = await auth();
+  const signedIn = Boolean(session?.user?.email);
+  const ctaHref = signedIn ? '/dashboard' : '/login?callbackUrl=/dashboard';
+  const ctaLabel = signedIn ? 'Open the dashboard' : 'Sign in';
+  const CtaIcon = signedIn ? ArrowRight : KeyRound;
+
   return (
     <main className="bg-bg-base min-h-screen">
       <div className="mx-auto max-w-5xl px-6 py-20 md:py-28">
@@ -70,10 +83,11 @@ export default function Landing() {
             quietly draft the follow-ups before you ask.
           </p>
           <div className="flex flex-wrap gap-3 pt-4">
-            <Link href="/dashboard">
+            <Link href={ctaHref}>
               <Button size="lg">
-                Open the dashboard
-                <ArrowRight className="h-4 w-4" />
+                {!signedIn ? <CtaIcon className="h-4 w-4" /> : null}
+                {ctaLabel}
+                {signedIn ? <CtaIcon className="h-4 w-4" /> : null}
               </Button>
             </Link>
             <Link href="/docs">
@@ -130,10 +144,11 @@ export default function Landing() {
               . Trust before autonomy — your call.
             </p>
             <div className="mt-7 flex flex-wrap justify-center gap-3">
-              <Link href="/dashboard">
+              <Link href={ctaHref}>
                 <Button>
-                  Open the dashboard
-                  <ArrowRight className="h-4 w-4" />
+                  {!signedIn ? <CtaIcon className="h-4 w-4" /> : null}
+                  {ctaLabel}
+                  {signedIn ? <CtaIcon className="h-4 w-4" /> : null}
                 </Button>
               </Link>
               <Link href="/docs">

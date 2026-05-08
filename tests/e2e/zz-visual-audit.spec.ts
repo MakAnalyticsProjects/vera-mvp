@@ -1,4 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
+
+test.beforeEach(async ({ context }) => {
+  await signInAs(context);
+});
 
 const ROUTES = [
   { path: '/', name: 'landing' },

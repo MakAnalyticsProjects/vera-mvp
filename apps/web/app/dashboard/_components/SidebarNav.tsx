@@ -13,6 +13,7 @@ import {
   LogOut,
   Trophy,
 } from 'lucide-react';
+import { signOutAction } from '../../_actions/auth';
 
 const NAV = [
   { href: '/dashboard', label: 'Today', icon: Home, exact: true },
@@ -55,13 +56,15 @@ export function SidebarNav() {
           <BookOpen className="h-4 w-4" />
           How I work
         </Link>
-        <Link
-          href="/"
-          className="text-text-secondary hover:bg-bg-base hover:text-text-primary flex items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2 text-sm transition-colors"
-        >
-          <LogOut className="h-4 w-4" />
-          Log out
-        </Link>
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            className="text-text-secondary hover:bg-bg-base hover:text-text-primary flex w-full items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2 text-sm transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+            Log out
+          </button>
+        </form>
       </div>
     </nav>
   );

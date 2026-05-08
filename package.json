@@ -22,6 +22,7 @@
     "@vera/types": "workspace:*"
   },
   "devDependencies": {
+    "@auth/core": "0.41.2",
     "@playwright/test": "^1.49.1",
     "@types/node": "^22.10.5",
     "husky": "^9.1.7",

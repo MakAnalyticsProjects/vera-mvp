@@ -1,13 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  AlertCircle,
-  CalendarClock,
-  CheckCircle2,
-  Info,
-  Send,
-} from 'lucide-react';
+import { AlertCircle, CalendarClock, CheckCircle2, Send } from 'lucide-react';
 import {
   Button,
   Card,
@@ -18,16 +12,18 @@ import {
   SelectValue,
   Switch,
   TimePicker,
-  Tooltip,
 } from '@vera/ui';
 
 /**
- * Scheduler — preview of the recurring report scheduling experience.
+ * Scheduler — recurring report delivery configuration.
  *
- * Per CLAUDE.md §6.7 (email send policy): one-shot Send now goes through
- * /api/brief/send → Resend immediately. Recurring schedules are stored in
- * localStorage and visualised here, but the cron service that would honour
- * them is not yet wired up. The banner at the top makes that explicit.
+ * One-shot Send now goes through /api/brief/send → Resend immediately.
+ * Recurring "Schedule" goes to /api/schedules, which persists a Schedule
+ * row keyed on tenantId + cadence. A GitHub Actions workflow hits the
+ * /api/cron/dispatch-briefs endpoint every 15 min, which finds rows whose
+ * nextRunAt has passed, fires the email, and advances nextRunAt to the
+ * next slot. Per-row UI state (enabled/recipient/time) lives in
+ * localStorage so the form remembers itself across sessions.
  */
 
 type ReportId = 'daily' | 'weekly' | 'monthly';
@@ -200,18 +196,66 @@ type SendOutcome =
   | { kind: 'success'; to: string; pdfBytes: number; id: string }
   | { kind: 'error'; message: string };
 
+type ScheduleOutcome =
+  | { kind: 'idle' }
+  | { kind: 'pending' }
+  | { kind: 'saved'; nextRunAt: string }
+  | { kind: 'error'; message: string };
+
+// Use the operator's browser timezone so the time they pick fires at THAT
+// time on their device. SSR can't read window — fall back to UTC at render
+// time and re-resolve on the client. We also fall back to America/Chicago
+// (Priority Roofs Dallas) if Intl is unavailable, but every modern browser
+// supports it.
+const SSR_FALLBACK_TIMEZONE = 'America/Chicago';
+
+function resolveTimezone(): string {
+  if (typeof window === 'undefined') return SSR_FALLBACK_TIMEZONE;
+  return (
+    Intl.DateTimeFormat().resolvedOptions().timeZone ?? SSR_FALLBACK_TIMEZONE
+  );
+}
+
+/** Short tz abbreviation for the given IANA name, e.g. "IST", "CDT". */
+function tzAbbreviation(timezone: string): string {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'short',
+    });
+    const part = fmt.formatToParts(new Date()).find((p) => p.type === 'timeZoneName');
+    return part?.value ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export function SchedulerView() {
   const [state, setState] = useState<SchedulerState>(DEFAULT_STATE);
   const [hydrated, setHydrated] = useState(false);
+  // Operator's browser timezone — falls back to Chicago on SSR and updates
+  // after hydration. We pass this through to ReportRow so describeCadence
+  // and formatNextRun are timezone-stable across SSR↔CSR (no hydration
+  // mismatch warnings).
+  const [timezone, setTimezone] = useState(SSR_FALLBACK_TIMEZONE);
   const [outcomes, setOutcomes] = useState<Record<ReportId, SendOutcome>>({
     daily: { kind: 'idle' },
     weekly: { kind: 'idle' },
     monthly: { kind: 'idle' },
   });
+  const [scheduleOutcomes, setScheduleOutcomes] = useState<
+    Record<ReportId, ScheduleOutcome>
+  >({
+    daily: { kind: 'idle' },
+    weekly: { kind: 'idle' },
+    monthly: { kind: 'idle' },
+  });
 
-  // Hydrate from localStorage after first render to avoid SSR mismatch
+  // Hydrate from localStorage + resolve browser tz after first render to
+  // avoid SSR mismatch.
   useEffect(() => {
     setState(loadState());
+    setTimezone(resolveTimezone());
     setHydrated(true);
   }, []);
 
@@ -284,25 +328,70 @@ export function SchedulerView() {
     }
   }
 
+  async function scheduleNow(id: ReportId) {
+    const cfg = state.reports[id];
+    if (!isValidEmail(cfg.recipient)) {
+      setScheduleOutcomes((o) => ({
+        ...o,
+        [id]: { kind: 'error', message: 'Enter a valid recipient email first.' },
+      }));
+      return;
+    }
+
+    // Map the UI cadenceValue to the API shape. For weekly cadence the value
+    // is a day-of-week (0-6); for monthly it's '1'..'28' or 'last'.
+    const dayOfWeek =
+      id === 'weekly' && cfg.cadenceValue !== undefined
+        ? Number(cfg.cadenceValue)
+        : null;
+    const dayOfMonth = id === 'monthly' ? cfg.cadenceValue ?? null : null;
+
+    setScheduleOutcomes((o) => ({ ...o, [id]: { kind: 'pending' } }));
+    try {
+      const res = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cadence: id,
+          dayOfWeek,
+          dayOfMonth,
+          timeLocal: cfg.time,
+          timezone,
+          recipient: cfg.recipient,
+          enabled: true,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setScheduleOutcomes((o) => ({
+          ...o,
+          [id]: {
+            kind: 'error',
+            message: json?.error ?? `Schedule failed (HTTP ${res.status}).`,
+          },
+        }));
+        return;
+      }
+      setScheduleOutcomes((o) => ({
+        ...o,
+        [id]: { kind: 'saved', nextRunAt: json.schedule.nextRunAt },
+      }));
+    } catch (e) {
+      setScheduleOutcomes((o) => ({
+        ...o,
+        [id]: {
+          kind: 'error',
+          message:
+            e instanceof Error
+              ? e.message
+              : 'Network error — could not reach the server.',
+        },
+      }));
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-10">
-      {/* Preview banner */}
-      <div className="border-accent/30 bg-accent/5 vera-rise flex items-start gap-3 rounded-2xl border px-5 py-4">
-        <Info className="text-accent mt-0.5 h-4 w-4 shrink-0" />
-        <div className="space-y-1">
-          <p className="text-text-primary text-sm font-medium">
-            Preview of the scheduling experience
-          </p>
-          <p className="text-text-secondary text-xs leading-relaxed">
-            The recurring delivery service isn&apos;t wired up yet —
-            toggling a report on, picking a cadence, or changing what gets
-            highlighted is saved to your browser but doesn&apos;t schedule
-            real cron sends. <strong>Send now</strong> does fire a real email
-            via Resend.
-          </p>
-        </div>
-      </div>
-
       {/* Header */}
       <header className="vera-rise space-y-3">
         <p className="text-text-muted text-xs tracking-[0.2em] uppercase">
@@ -330,23 +419,32 @@ export function SchedulerView() {
         <ReportRow
           report={state.reports.daily}
           outcome={outcomes.daily}
+          scheduleOutcome={scheduleOutcomes.daily}
           hydrated={hydrated}
+          timezone={timezone}
           onChange={(patch) => updateReport('daily', patch)}
           onSendNow={() => sendNow('daily')}
+          onSchedule={() => scheduleNow('daily')}
         />
         <ReportRow
           report={state.reports.weekly}
           outcome={outcomes.weekly}
+          scheduleOutcome={scheduleOutcomes.weekly}
           hydrated={hydrated}
+          timezone={timezone}
           onChange={(patch) => updateReport('weekly', patch)}
           onSendNow={() => sendNow('weekly')}
+          onSchedule={() => scheduleNow('weekly')}
         />
         <ReportRow
           report={state.reports.monthly}
           outcome={outcomes.monthly}
+          scheduleOutcome={scheduleOutcomes.monthly}
           hydrated={hydrated}
+          timezone={timezone}
           onChange={(patch) => updateReport('monthly', patch)}
           onSendNow={() => sendNow('monthly')}
+          onSchedule={() => scheduleNow('monthly')}
         />
       </section>
 
@@ -395,18 +493,25 @@ export function SchedulerView() {
 function ReportRow({
   report,
   outcome,
+  scheduleOutcome,
   hydrated,
+  timezone,
   onChange,
   onSendNow,
+  onSchedule,
 }: {
   report: ReportConfig;
   outcome: SendOutcome;
+  scheduleOutcome: ScheduleOutcome;
   hydrated: boolean;
+  timezone: string;
   onChange: (patch: Partial<ReportConfig>) => void;
   onSendNow: () => void;
+  onSchedule: () => void;
 }) {
   const meta = REPORT_META[report.id];
-  const cadenceLine = describeCadence(report);
+  const tzLabel = tzAbbreviation(timezone);
+  const cadenceLine = describeCadence(report, tzLabel);
   const recipientValid = report.recipient ? isValidEmail(report.recipient) : true;
 
   return (
@@ -471,7 +576,7 @@ function ReportRow({
             </Field>
           ) : null}
 
-          <Field label="Time">
+          <Field label="Time (your local time)">
             <TimePicker
               value={report.time}
               onChange={(v) => onChange({ time: v })}
@@ -522,19 +627,38 @@ function ReportRow({
                 <p className="text-text-primary text-xs">{outcome.message}</p>
               </div>
             ) : null}
+            {scheduleOutcome.kind === 'saved' ? (
+              <div className="border-accent/30 bg-accent/5 flex items-center gap-2 rounded-xl border px-3 py-2">
+                <CheckCircle2 className="text-accent h-3.5 w-3.5 shrink-0" />
+                <p className="text-text-primary text-xs">
+                  Scheduled — next run{' '}
+                  <strong>{formatNextRun(scheduleOutcome.nextRunAt, timezone)}</strong>.
+                </p>
+              </div>
+            ) : null}
+            {scheduleOutcome.kind === 'error' ? (
+              <div className="border-heat-critical/40 bg-heat-critical/5 flex items-center gap-2 rounded-xl border px-3 py-2">
+                <AlertCircle className="text-heat-critical h-3.5 w-3.5 shrink-0" />
+                <p className="text-text-primary text-xs">{scheduleOutcome.message}</p>
+              </div>
+            ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Tooltip
-              content="Recurring scheduling isn't wired up yet — coming with the cron + persistence layer in V2."
-              side="top"
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onSchedule}
+              disabled={
+                !report.recipient ||
+                !recipientValid ||
+                scheduleOutcome.kind === 'pending'
+              }
             >
-              <span>
-                <Button type="button" variant="secondary" disabled>
-                  <CalendarClock className="mr-2 h-3.5 w-3.5" />
-                  <span className="whitespace-nowrap">Schedule</span>
-                </Button>
+              <CalendarClock className="mr-2 h-3.5 w-3.5" />
+              <span className="whitespace-nowrap">
+                {scheduleOutcome.kind === 'pending' ? 'Scheduling…' : 'Schedule'}
               </span>
-            </Tooltip>
+            </Button>
             <Button
               type="button"
               onClick={onSendNow}
@@ -558,6 +682,23 @@ function ReportRow({
       </div>
     </Card>
   );
+}
+
+// Format the next-run timestamp in the tenant's timezone (Chicago) so the
+// toast matches what the user picked, regardless of where the operator's
+// browser is. Locale-formatted abbreviation ("CDT" / "CST") tells them which
+// tz they're looking at.
+function formatNextRun(iso: string, timezone = resolveTimezone()): string {
+  const d = new Date(iso);
+  return d.toLocaleString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: timezone,
+    timeZoneName: 'short',
+  });
 }
 
 function Field({
@@ -617,8 +758,12 @@ function ShadcnSelect({
   );
 }
 
-function describeCadence(report: ReportConfig): string {
-  const time = formatTime12h(report.time);
+function describeCadence(report: ReportConfig, tzLabel: string): string {
+  // The time is the operator's local time. Append the resolved tz
+  // abbreviation (IST / CDT / etc) so the cadence line reads naturally.
+  const time = tzLabel
+    ? `${formatTime12h(report.time)} ${tzLabel}`
+    : formatTime12h(report.time);
   if (report.id === 'daily') return `Every weekday at ${time}`;
   if (report.id === 'weekly') {
     const day =

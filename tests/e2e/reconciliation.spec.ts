@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 test.describe('Reconciliation report', () => {
+  test.beforeEach(async ({ context }) => {
+    await signInAs(context);
+  });
+
   test('renders header and Vera narrative', async ({ page }) => {
     await page.goto('/dashboard/reconciliation');
     await expect(

@@ -1,0 +1,108 @@
+// Prisma schema — Phase 1 of the May 7 implementation plan.
+// Multi-tenant Vera DB. The first tenant is Priority Roofs · Dallas (seed.ts).
+// `briefingTimeLocal` + `briefingTimezone` on Tenant let each tenant pick when
+// the AI briefing fires (per §2.5 of IMPROVEMENTS.md).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id                Int       @id @default(autoincrement())
+  name              String
+  slug              String    @unique
+  senderDomain      String?
+  brandColor        String?
+  briefingTimeLocal String    @default("07:00")
+  briefingTimezone  String    @default("America/Chicago")
+  createdAt         DateTime  @default(now())
+
+  users      User[]
+  schedules  Schedule[]
+  sendLog    SendLog[]
+  briefings  Briefing[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int
+  email     String   @unique
+  googleSub String?  @unique
+  name      String?
+  imageUrl  String?
+  /// 'owner' | 'member'
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model Schedule {
+  id         Int       @id @default(autoincrement())
+  tenantId   Int
+  /// 'daily' | 'weekly' | 'monthly'
+  cadence    String
+  /// 0 (Sunday) .. 6 (Saturday) for weekly cadence
+  dayOfWeek  Int?
+  /// '1'..'28' or 'last' or 'last-business' for monthly cadence
+  dayOfMonth String?
+  /// 'HH:mm' in the tenant's local timezone
+  timeLocal  String
+  /// IANA tz, e.g. 'America/Chicago'
+  timezone   String
+  recipient  String
+  enabled    Boolean   @default(true)
+  nextRunAt  DateTime?
+  lastRunAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  sendLog  SendLog[]
+
+  @@index([tenantId, enabled, nextRunAt])
+}
+
+model SendLog {
+  id           Int       @id @default(autoincrement())
+  tenantId     Int
+  /// nullable — manual Send-now sends have no schedule
+  scheduleId   Int?
+  cadence      String
+  toEmail      String
+  resendId     String?
+  pdfBytes     Int?
+  /// 'sent' | 'failed' | 'cancelled'
+  status       String
+  errorMessage String?
+  sentAt       DateTime  @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  schedule Schedule? @relation(fields: [scheduleId], references: [id])
+
+  @@index([tenantId, sentAt])
+}
+
+model Briefing {
+  id               Int      @id @default(autoincrement())
+  tenantId         Int
+  generatedAt      DateTime @default(now())
+  headline         String
+  bodyMd           String   @db.Text
+  /// JSON shape: { topCritical: [...], sources: { nws: [...], news: [...] } }
+  /// (sources sit alongside topCritical to avoid a schema migration)
+  keyJobs          Json?
+  model            String?
+  promptTokens     Int?
+  completionTokens Int?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, generatedAt])
+}

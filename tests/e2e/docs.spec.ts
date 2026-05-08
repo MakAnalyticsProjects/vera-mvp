@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 test.describe('Docs (/docs) — handbook', () => {
   test('renders all six sections and the back link', async ({ page }) => {
@@ -29,7 +30,9 @@ test.describe('Docs (/docs) — handbook', () => {
     await expect(page.getByText('60+ past', { exact: true }).first()).toBeVisible();
   });
 
-  test('Open the dashboard CTA at the bottom navigates to /dashboard', async ({ page }) => {
+  test('Open the dashboard CTA at the bottom navigates to /dashboard', async ({ context, page }) => {
+    // /dashboard is auth-gated; sign in so the CTA lands there directly.
+    await signInAs(context);
     await page.goto('/docs');
     await page
       .getByRole('link', { name: /Open the dashboard/i })

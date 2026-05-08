@@ -1,10 +1,15 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 /**
  * Mobile overflow regression. At 375px viewport width every route must
  * keep its document scrollWidth within the viewport — otherwise the page
  * scrolls horizontally, which is the symptom of a mobile-broken layout.
  */
+
+test.beforeEach(async ({ context }) => {
+  await signInAs(context);
+});
 
 const ROUTES = [
   '/',

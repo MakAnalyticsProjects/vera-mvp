@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
 
 test.describe('Follow-ups & executive review', () => {
+  test.beforeEach(async ({ context }) => {
+    await signInAs(context);
+  });
+
   test('renders both tabs and metric tiles', async ({ page }) => {
     await page.goto('/dashboard/follow-ups');
     await expect(

@@ -44,17 +44,17 @@ const ASSUMPTIONS = [
   },
   {
     code: 'Q5',
-    title: 'I draft. You send.',
-    body: 'No live emails go out from my account. Every nudge is a draft you can review, edit, and copy. Trust before autonomy.',
+    title: 'I draft rep follow-ups. You send them.',
+    body: 'Every rep nudge is a draft you can review, edit, and copy — no auto-send to reps, ever. The only emails I dispatch on my own are the AR briefs you explicitly schedule on the Scheduler page, and every send is logged. Trust before autonomy.',
   },
 ];
 
 const OUT_OF_SCOPE = [
   'QuickBooks sync (no QB export was provided)',
-  'Real outbound email for rep follow-ups — drafts only',
+  'Auto-sending rep follow-ups — those stay drafts you review and copy',
   'Per-rep logins — exec view only',
   'Trend reports, departed-rep audits, end-of-month close',
-  'Edits back to RoofLink — I\'m read-only',
+  "Edits back to RoofLink — I'm read-only on the source",
 ];
 
 export default function DocsPage() {
@@ -112,16 +112,19 @@ export default function DocsPage() {
                 it shouldn&apos;t, and draft the follow-ups before you ask.
               </p>
               <p className="text-text-secondary leading-relaxed">
-                I&apos;m <span className="text-text-primary font-medium">observe + draft only</span>:
-                no autosend, no real outbound email, no edits back to RoofLink, no
-                database writes. RoofLink stays the source of truth — I just read it,
+                I&apos;m <span className="text-text-primary font-medium">draft for rep follow-ups, scheduled-send for AR briefs</span>.
+                Rep follow-ups stay as drafts you review, edit, and copy — I never
+                fire those on my own. The only emails I dispatch are the AR briefs
+                you&apos;ve explicitly scheduled on the Scheduler page, and every send
+                is logged. RoofLink stays the source of truth — I just read it,
                 pattern-match, and surface what matters. Every default I use is
                 visible in the UI so you can spot and challenge it.
               </p>
               <ul className="text-text-secondary mt-4 space-y-2.5 text-sm leading-relaxed">
                 <Bullet>I read from a daily snapshot of the RoofLink export.</Bullet>
-                <Bullet>I draft emails you can copy / open in your mail client.</Bullet>
-                <Bullet>I never send, post, or modify anything on your behalf.</Bullet>
+                <Bullet>I draft rep follow-up emails you can copy or open in your mail client.</Bullet>
+                <Bullet>I send AR briefs only on a schedule you set, and log every dispatch.</Bullet>
+                <Bullet>I never modify anything in RoofLink — read-only on the source.</Bullet>
                 <Bullet>I show the four numbers behind every heat score I assign.</Bullet>
               </ul>
             </div>
