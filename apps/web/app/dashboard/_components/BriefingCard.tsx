@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { useState } from 'react';
 import { ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@vera/ui';
@@ -193,7 +194,7 @@ function AIBriefingCard({
           - a → accent color underline */}
       <div className="mt-4 space-y-3">
         <p className="font-display text-text-primary text-xl leading-snug tracking-tight">
-          {ai.headline}
+          {renderInlineBold(ai.headline)}
         </p>
         <div
           className={
@@ -285,4 +286,25 @@ function SourceChip({ source }: { source: BriefingSource }) {
     );
   }
   return <div className={wrapperCls}>{inner}</div>;
+}
+
+// ─── Tiny inline-bold renderer ──────────────────────────────────────────────
+//
+// The system prompt asks the model to bold key phrases with ** ** in the
+// body, and we forbid ** in the headline — but older Briefing rows in the DB
+// still have **markers** in the headline. This splits on the markers and
+// wraps each bolded run in <strong> so they render as actual bold text
+// instead of literal asterisks. Cheap, no dependency.
+function renderInlineBold(text: string): React.ReactNode {
+  if (!text.includes('**')) return text;
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <strong key={i} className="font-semibold">
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  );
 }

@@ -14,7 +14,11 @@ import { signInAs } from './_helpers/auth';
 const MOCK_BRIEFING = {
   ok: true,
   briefing: {
-    headline: 'Insurance receivables tightening — three jobs are aging fast',
+    // Includes ** markers to verify the headline renders bolded segments
+    // instead of literal asterisks (older briefings in the DB still have
+    // these — the prompt now forbids ** in headlines, but the client also
+    // renders them defensively).
+    headline: 'Insurance receivables tightening — **three jobs** are aging fast',
     bodyMd:
       "I'm watching **$48,200** across three jobs that crossed **60 days past terms** overnight. " +
       "**Mike Sanchez** has two of them — **Carol Whitfield's** Plano roof at heat **88** is the most urgent.\n\n" +
@@ -79,7 +83,12 @@ test.describe('BriefingCard', () => {
       page.getByText(/Insurance receivables tightening/i),
     ).toBeVisible();
 
-    // Bolded markdown actually renders as <strong> (not literal **)
+    // The headline's **three jobs** segment renders as a <strong>, not as
+    // literal asterisks (regression for the headline-bold bug).
+    await expect(page.locator('strong', { hasText: 'three jobs' })).toBeVisible();
+    await expect(page.getByText('**three jobs**')).toHaveCount(0);
+
+    // Bolded markdown in the body too.
     const strong = page.locator('strong', { hasText: '$48,200' });
     await expect(strong).toBeVisible();
 

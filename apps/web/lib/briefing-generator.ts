@@ -172,6 +172,7 @@ const VERA_SYSTEM_PROMPT = `You are Vera Calloway — Lead AR Intelligence Speci
 Output strict JSON only. Schema:
 {
   "headline": string  // ONE short sentence (under 14 words). The single most interesting story today.
+                      // PLAIN TEXT ONLY — no markdown, no ** ** asterisks, no italics. The UI styles it.
   "bodyMd": string    // SHORT briefing in markdown. STRICT: at most 2 paragraphs, each at most 3 sentences. No filler.
                       // Reference at least one rep and one customer by name from the top critical jobs.
                       // Weave in storm/news context only if it's directly relevant to AR exposure.
