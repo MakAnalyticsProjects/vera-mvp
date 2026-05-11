@@ -13,11 +13,10 @@ import { Receiver } from '@upstash/qstash';
  *      forge a valid signature without the rotated signing keys.
  *
  *   2. **Legacy `Authorization: Bearer $CRON_SECRET` (fallback).** Kept
- *      for: (a) manual `curl` from a developer machine, (b) the
- *      `workflow_dispatch` button in GitHub Actions if we ever need
- *      an emergency manual fire, and (c) local dev where running QStash
- *      verification is awkward. Off by default in deployments where
- *      `CRON_SECRET` is not set.
+ *      for: (a) manual `curl` from a developer machine when poking the
+ *      endpoint directly, and (b) local dev where running QStash
+ *      signature verification is awkward. Off by default in deployments
+ *      where `CRON_SECRET` is not set.
  *
  * Returns `{ ok: true }` on success or `{ ok: false, status, error }`
  * on rejection so the caller can shape the HTTP response itself.

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import {
   AlertCircle,
-  AlertTriangle,
   CalendarClock,
   CheckCircle2,
   Send,
@@ -583,25 +582,6 @@ export function SchedulerView() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-10">
-      {/* Cron reliability advisory — see notes in OPERATIONS.md. */}
-      <div
-        role="status"
-        className="border-heat-warm/40 bg-heat-warm/5 vera-rise flex items-start gap-3 rounded-2xl border px-5 py-4"
-      >
-        <AlertTriangle className="text-heat-warm mt-0.5 h-4 w-4 shrink-0" />
-        <div className="space-y-1">
-          <p className="text-text-primary text-sm font-medium">
-            Automatic dispatch may be delayed
-          </p>
-          <p className="text-text-secondary text-xs leading-relaxed">
-            We rely on GitHub Actions cron for recurring sends. New
-            workflows can sit in a multi-hour onboarding throttle before the
-            first auto-fire. Scheduled rows here will queue and send the
-            moment GitHub picks them up. For guaranteed immediate delivery,
-            use <strong>Send now</strong>.
-          </p>
-        </div>
-      </div>
 
       {/* Header */}
       <header className="vera-rise space-y-3">

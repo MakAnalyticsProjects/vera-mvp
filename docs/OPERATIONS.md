@@ -107,7 +107,7 @@ sequenceDiagram
 
     rect rgba(255, 235, 220, 0.5)
     Note over User,DB: Scheduled path — weekday 7am Central
-    Note over Gen: invoked by cron-generate-briefings
+    Note over Gen: invoked by the QStash generate-briefings schedule
     Gen->>NWS: alerts
     Gen->>News: headlines
     Gen->>OpenAI: gpt-4o
@@ -174,17 +174,18 @@ curl -X POST https://vera-mvp.vercel.app/api/cron/dispatch-briefs \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-Or via the retained GitHub Actions workflow (manual-only — schedule was
-removed in the QStash migration):
+Or via a one-off QStash publish (exercises the signed-path end-to-end,
+not just the bearer fallback):
 
 ```bash
-gh workflow run cron-dispatch-briefs.yml \
-  --repo adityauphade-mac/vera-mvp
-gh run watch
+QSTASH_TOKEN="$(grep '^QSTASH_TOKEN=' apps/web/.env.local | cut -d= -f2- | tr -d '"')"
+curl -X POST "https://qstash-us-east-1.upstash.io/v2/publish/https://vera-mvp.vercel.app/api/cron/dispatch-briefs" \
+  -H "Authorization: Bearer $QSTASH_TOKEN" \
+  -H "Content-Length: 0"
 ```
 
 Both routes the same `/api/cron/dispatch-briefs`. Same code path as a
-QStash-triggered run.
+QStash-triggered scheduled run.
 
 ---
 
@@ -230,9 +231,11 @@ so leaving `CRON_SECRET` set is fine.
 
 ### What to do if QStash is down
 
-The GitHub Actions workflows (`cron-dispatch-briefs.yml`,
-`cron-generate-briefings.yml`) are retained as `workflow_dispatch`-only.
-Fire them manually from the GitHub UI to flush the backlog.
+Hit the cron endpoints directly with the legacy bearer auth — same
+endpoints, same code path, just bypassing QStash entirely. Use the
+`curl` command in [Manually trigger the dispatcher](#manually-trigger-the-dispatcher)
+above. Loop it from a `watch` if you need to flush a backlog while
+QStash is recovering.
 
 ---
 
@@ -363,7 +366,7 @@ flowchart TD
 That's the State A CTA — there's no `Briefing` row yet for this tenant.
 Either:
 - Click the orange "Fetch latest news" button → generates one immediately, OR
-- Wait for the next 7am Central run of `cron-generate-briefings`.
+- Wait for the next 7am Central run of the QStash `generate-briefings` schedule.
 
 ### "Auth says 'Server error / Configuration'"
 
