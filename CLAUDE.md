@@ -24,6 +24,8 @@ This file is the source of truth for how code is written in this repository. Eve
 6. **No new top-level packages without updating this file.** Tech stack is pinned (see below).
 7. **Every new route gets a Playwright spec before it merges.** No exceptions.
 8. **Every default behavior must be visible in the UI** (tooltip / footnote) so users can spot and challenge it. Per the SPEC.md philosophy.
+9. **The Neon DB is shared between local dev and production — there is no staging DB.** Migrations applied locally are instantly live in prod. Treat any script that `DELETE`s or `UPDATE`s more than a single row as production-data-loss-in-the-making, and get explicit user ACK before running it. Read-only queries don't need ACK.
+10. **Server (DB) is the source of truth for UI state.** Fetch from the DB on mount; `localStorage` is only a draft buffer for unsaved form input. Never trust the local cached value to match what the cron worker, another tab, or another user is seeing.
 
 ---
 
@@ -85,6 +87,23 @@ data/                      gitignored — source + generated artifacts
 - Within a workspace: relative paths (`./button`).
 - Across workspaces: package name (`@vera/shared-domain`, `@vera/shared-ui`, etc.).
 - No deep imports across packages — only from each package's `index.ts`.
+
+---
+
+## Worktrees
+
+- **Name worktrees by function**, not by adjective. `worktrees/scheduler-natural-key`, `worktrees/qstash-migration` — yes. `claude/festive-burnell-293408` (the auto-generated `claude/<adjective>-<surname>-<digits>` form) — no. The name should describe what's in the worktree, the same way branch names do.
+- **Keep active worktrees minimal.** One per in-flight piece of work. Remove with `git worktree remove <path>` when the work merges. Don't let them accumulate — every worktree duplicates gitignored data (notably the 187 MB `data/jobs_dedup.jsonl`) and adds deploy footguns.
+- **Bootstrap a fresh worktree with `scripts/setup-worktree.sh <path>`.** It copies the gitignored-but-required files (`apps/web/.env.local`, `data/jobs_dedup.jsonl`, `data/generated.json`) from the canonical main repo, runs `pnpm install`, and runs `prisma generate`. Doing this by hand has cost us time twice — don't.
+- **Never deploy from a worktree.** Worktrees carry their own copies of gitignored data, and `vercel --prod` from one will upload the wrong tree (we hit Vercel's 100 MB single-file limit because of this). Deploy from `/Users/aditya-levich/Build/israil_mvp` only.
+
+---
+
+## Shipping a change
+
+- **Vercel git auto-deploy is not working today** — the Vercel team is owned by the `hexabytecode` GitHub account, the repo is owned by `adityauphade-mac`, and Vercel can't see this namespace. Pushes to `main` do not trigger a deploy. After merging to `main`, run `vercel --prod --yes` from the canonical main repo root every time. (Once the identity mismatch is resolved, this becomes automatic — see memory S1620 for the full diagnosis.)
+- **Modifying `.github/workflows/*` needs the `workflow` OAuth scope** which the default `gh` and OAuth tokens here don't have. You'll get a misleading 404 on the Contents API or a workflow-scope rejection from `git push`. Two paths: use the GitHub web UI (your browser session has full owner permissions) for one-off edits, or refresh CLI access once with `gh auth refresh -h github.com -s workflow`.
+- **One commit, one logical change.** Bundling a refactor with an infrastructure migration in the same PR (we did this with PR #13) works but makes review harder. Default to separate PRs unless the changes are inseparable.
 
 ---
 
