@@ -35,7 +35,7 @@ sequenceDiagram
     participant Resend
     participant Inbox
 
-    Note over QS: every 15 min
+    Note over QS: every 5 min
     QS->>API: POST + upstash-signature JWT
     API->>DB: SELECT Schedule WHERE nextRunAt <= now
     loop for each due row
@@ -61,7 +61,7 @@ Three guarantees:
    schedule is already advanced — we won't retry on the next tick.
 3. **Drift tolerant.** QStash cron is usually within a few seconds of the
    tick. A schedule for 1:00 PM typically fires at 1:00–1:01 PM. The worst
-   case is bounded by your QStash cron's interval (15 min for us). It will
+   case is bounded by your QStash cron's interval (5 min for us). It will
    not fire at 12:58 PM and it will not fire twice.
 
 What the dispatcher does NOT do:
@@ -200,7 +200,7 @@ tick.
 
 | Schedule | Cron expression | Target URL | Notes |
 |---|---|---|---|
-| Dispatch due AR briefs | `*/15 * * * *` (every 15 min) | `https://vera-mvp.vercel.app/api/cron/dispatch-briefs` | Sweeps the `Schedule` table |
+| Dispatch due AR briefs | `*/5 * * * *` (every 5 min) | `https://vera-mvp.vercel.app/api/cron/dispatch-briefs` | Sweeps the `Schedule` table |
 | Generate daily AI briefings | `0 12 * * 1-5` (12:00 UTC Mon–Fri) | `https://vera-mvp.vercel.app/api/cron/generate-briefings` | One row per tenant |
 
 ### To create or edit schedules
