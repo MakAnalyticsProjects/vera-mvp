@@ -3,7 +3,7 @@ import { SchedulerView } from './SchedulerView';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: 'Data sync' };
+export const metadata: Metadata = { title: 'Scheduler' };
 
 export default function SchedulerPage() {
   return <SchedulerView />;
