@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -14,6 +15,11 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'Design system',
+  robots: { index: false, follow: false },
+};
 import {
   AgingChip,
   AnomalyTag,

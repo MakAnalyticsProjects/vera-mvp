@@ -1,6 +1,12 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { signIn, auth } from '@/lib/auth';
 import { Button, VeraAvatar } from '@vera/ui';
+
+export const metadata: Metadata = {
+  title: 'Sign in',
+  robots: { index: false, follow: false },
+};
 
 /**
  * Login page. Server component — checks if the user is already signed in

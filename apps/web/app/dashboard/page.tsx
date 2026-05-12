@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   AgingChip,
@@ -10,6 +11,8 @@ import { formatUSD } from '@vera/utils';
 import { getData } from '@/lib/data';
 import { BriefingCard, type AIBriefing, type BriefingSource } from './_components/BriefingCard';
 import { db } from '@/lib/db';
+
+export const metadata: Metadata = { title: 'Briefing' };
 
 const TENANT_ID_FALLBACK = 1;
 

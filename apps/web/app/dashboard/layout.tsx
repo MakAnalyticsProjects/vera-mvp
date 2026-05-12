@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { VeraAvatar } from '@vera/ui';
 import { getData } from '@/lib/data';
@@ -5,6 +6,10 @@ import { auth } from '@/lib/auth';
 import { ChatPanel } from './_components/ChatPanel';
 import { MobileNav } from './_components/MobileNav';
 import { SidebarNav } from './_components/SidebarNav';
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function DashboardLayout({
   children,
