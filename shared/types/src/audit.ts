@@ -19,6 +19,7 @@ export const AUDIT_CATEGORIES = [
   'brief',
   'briefing',
   'chat',
+  'backfill',
 ] as const;
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
 
@@ -36,6 +37,21 @@ export const AUDIT_ACTIONS_BY_CATEGORY = {
   brief: ['sent_now', 'sent_scheduled', 'send_failed'],
   briefing: ['regenerated', 'generated_daily', 'generation_failed'],
   chat: ['asked'],
+  // Backfill: schedule_* mirrors the schedule mutations (a BackfillSchedule
+  // is just a Schedule for Rooflink imports); run_* covers manual + system
+  // run lifecycle. run_completed / run_failed fire from the tick-worker
+  // when the run reaches a terminal state — not per tick.
+  backfill: [
+    'schedule_created',
+    'schedule_updated',
+    'schedule_paused',
+    'schedule_resumed',
+    'schedule_deleted',
+    'run_started',
+    'run_cancelled',
+    'run_completed',
+    'run_failed',
+  ],
 } as const satisfies Record<AuditCategory, readonly string[]>;
 
 export type AuditAction<C extends AuditCategory = AuditCategory> =
@@ -93,6 +109,7 @@ export const AUDIT_CATEGORY_LABEL: Record<AuditCategory, string> = {
   brief: 'Brief',
   briefing: 'Briefing',
   chat: 'Chat',
+  backfill: 'Backfill',
 };
 
 /**
@@ -128,6 +145,16 @@ const ACTION_LABELS: Record<string, string> = {
   generation_failed: 'Generation failed',
   // chat
   asked: 'Asked',
+  // backfill
+  schedule_created: 'Schedule created',
+  schedule_updated: 'Schedule updated',
+  schedule_paused: 'Schedule paused',
+  schedule_resumed: 'Schedule resumed',
+  schedule_deleted: 'Schedule deleted',
+  run_started: 'Run started',
+  run_cancelled: 'Run cancelled',
+  run_completed: 'Run completed',
+  run_failed: 'Run failed',
 };
 
 export function humanizeAction(action: string): string {

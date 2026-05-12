@@ -569,8 +569,161 @@ function CategoryDetailBody({ entry }: { entry: AuditLogEntry }) {
   if (entry.category === 'briefing') return <BriefingBody entry={entry} />;
   if (entry.category === 'chat') return <ChatBody entry={entry} />;
   if (entry.category === 'auth') return <AuthBody entry={entry} />;
+  if (entry.category === 'backfill') return <BackfillBody entry={entry} />;
   return null;
 }
+
+function BackfillBody({ entry }: { entry: AuditLogEntry }) {
+  const d = (entry.details ?? {}) as {
+    source?: string;
+    mode?: string;
+    runId?: number;
+    scheduleId?: number | null;
+    syncedSince?: string | null;
+    trigger?: 'manual' | 'scheduled';
+    itemsProcessed?: number;
+    itemsTotal?: number | null;
+    startedAt?: string | null;
+    finishedAt?: string | null;
+    reason?: string;
+    before?: BackfillScheduleSnapshot | null;
+    after?: BackfillScheduleSnapshot | null;
+  };
+  const sourceLabels: Record<string, string> = {
+    rooflink_jobs: 'Rooflink jobs',
+    rooflink_lineitems: 'Rooflink estimate line items',
+  };
+  const sourceLabel = d.source ? (sourceLabels[d.source] ?? d.source) : null;
+
+  // schedule_updated diff table — same shape as ScheduleBody
+  if (entry.action === 'schedule_updated' && d.before && d.after) {
+    const rows: Array<[string, string, string]> = [];
+    if (d.before.cadence !== d.after.cadence)
+      rows.push(['Cadence', d.before.cadence, d.after.cadence]);
+    if (d.before.timeLocal !== d.after.timeLocal)
+      rows.push(['Time', d.before.timeLocal, d.after.timeLocal]);
+    if ((d.before.dayOfWeek ?? null) !== (d.after.dayOfWeek ?? null))
+      rows.push([
+        'Day of week',
+        String(d.before.dayOfWeek ?? '—'),
+        String(d.after.dayOfWeek ?? '—'),
+      ]);
+    if ((d.before.dayOfMonth ?? null) !== (d.after.dayOfMonth ?? null))
+      rows.push([
+        'Day of month',
+        String(d.before.dayOfMonth ?? '—'),
+        String(d.after.dayOfMonth ?? '—'),
+      ]);
+    if (rows.length === 0)
+      return <DetailLine>No tracked fields changed.</DetailLine>;
+    return <DiffTable headerLabels={['Field', 'Before', 'After']} rows={rows} />;
+  }
+
+  // schedule_{created,paused,resumed,deleted} — snapshot view
+  if (entry.action.startsWith('schedule_')) {
+    const snap = d.after ?? d.before;
+    if (!snap) return null;
+    return (
+      <div className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+        <DetailLabel>Source</DetailLabel>
+        <DetailValue>{sourceLabel ?? snap.source ?? '—'}</DetailValue>
+        <DetailLabel>Cadence</DetailLabel>
+        <DetailValue>{snap.cadence}</DetailValue>
+        <DetailLabel>Time</DetailLabel>
+        <DetailValue>
+          {snap.timeLocal} {snap.timezone}
+        </DetailValue>
+        <DetailLabel>Enabled</DetailLabel>
+        <DetailValue>{snap.enabled ? 'Yes' : 'No (paused)'}</DetailValue>
+      </div>
+    );
+  }
+
+  // run_{started,completed,cancelled,failed} — run snapshot
+  if (entry.action.startsWith('run_')) {
+    const isFailed = entry.action === 'run_failed';
+    return (
+      <div className="space-y-3">
+        {isFailed && d.reason ? (
+          <div className="border-heat-critical/40 bg-heat-critical/5 rounded-xl border px-3 py-2">
+            <p className="text-text-primary text-xs whitespace-pre-wrap">
+              {d.reason}
+            </p>
+          </div>
+        ) : null}
+        <div className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+          {sourceLabel ? (
+            <>
+              <DetailLabel>Source</DetailLabel>
+              <DetailValue>{sourceLabel}</DetailValue>
+            </>
+          ) : null}
+          {d.mode ? (
+            <>
+              <DetailLabel>Mode</DetailLabel>
+              <DetailValue>{d.mode === 'full' ? 'Full sync' : 'Incremental'}</DetailValue>
+            </>
+          ) : null}
+          {d.trigger ? (
+            <>
+              <DetailLabel>Trigger</DetailLabel>
+              <DetailValue>{d.trigger === 'manual' ? 'Manual (Run now)' : 'Scheduled'}</DetailValue>
+            </>
+          ) : null}
+          {typeof d.itemsProcessed === 'number' ? (
+            <>
+              <DetailLabel>Records</DetailLabel>
+              <DetailValue>
+                {d.itemsProcessed.toLocaleString()}
+                {typeof d.itemsTotal === 'number'
+                  ? ` of ${d.itemsTotal.toLocaleString()}`
+                  : ''}
+              </DetailValue>
+            </>
+          ) : null}
+          {d.startedAt ? (
+            <>
+              <DetailLabel>Started</DetailLabel>
+              <DetailValue>{formatTimestampLong(d.startedAt)}</DetailValue>
+            </>
+          ) : null}
+          {d.finishedAt ? (
+            <>
+              <DetailLabel>Finished</DetailLabel>
+              <DetailValue>{formatTimestampLong(d.finishedAt)}</DetailValue>
+            </>
+          ) : null}
+          {d.syncedSince ? (
+            <>
+              <DetailLabel>Synced since</DetailLabel>
+              <DetailValue>{formatTimestampLong(d.syncedSince)}</DetailValue>
+            </>
+          ) : null}
+          {typeof d.runId === 'number' ? (
+            <>
+              <DetailLabel>Run id</DetailLabel>
+              <DetailValue className="font-mono text-[11px]">
+                #{d.runId}
+              </DetailValue>
+            </>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+type BackfillScheduleSnapshot = {
+  source?: string;
+  cadence: string;
+  timeLocal: string;
+  timezone: string;
+  dayOfWeek?: number | null;
+  dayOfMonth?: string | null;
+  enabled: boolean;
+};
 
 function ScheduleBody({ entry }: { entry: AuditLogEntry }) {
   const d = (entry.details ?? {}) as { before?: Schedule | null; after?: Schedule | null };

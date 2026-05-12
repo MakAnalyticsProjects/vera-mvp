@@ -26,6 +26,15 @@ This file is the source of truth for how code is written in this repository. Eve
 8. **Every default behavior must be visible in the UI** (tooltip / footnote) so users can spot and challenge it. Per the SPEC.md philosophy.
 9. **The Neon DB is shared between local dev and production — there is no staging DB.** Migrations applied locally are instantly live in prod. Treat any script that `DELETE`s or `UPDATE`s more than a single row as production-data-loss-in-the-making, and get explicit user ACK before running it. Read-only queries don't need ACK.
 10. **Server (DB) is the source of truth for UI state.** Fetch from the DB on mount; `localStorage` is only a draft buffer for unsaved form input. Never trust the local cached value to match what the cron worker, another tab, or another user is seeing.
+11. **No native browser dialogs, no inline transient banners.** `window.alert()`, `window.confirm()`, and `window.prompt()` are forbidden — they look broken, can't be styled, and can't be tested without intercepting `page.on('dialog')`. Use `useConfirm()` from `@vera/ui` for confirmations and `toast()` from `@vera/ui` (sonner-backed) for success/error/loading feedback. Transient status (sent / saved / paused / cancel-confirmation / API error) goes through toasts, NOT inline `<div>` banners inside the page. Persistent state (a card's "last run failed" history line) stays on-page because it's informational, not transient. Long-running operations (backfill runs, multi-second jobs) use a persistent `toast.loading()` with a stable id and update-in-place — the toast IS the progress UI, no separate progress bar on the page. If you find yourself reaching for `setError` + a conditionally-rendered red div, that's a toast.
+    - **Modal flavors** — two patterns, share visual chrome (centered, `bg-bg-card`, `rounded-[var(--radius-card)]`, `p-7`, `shadow-2xl`) but differ in title typography and use case:
+      - **`<Modal>` — content surface, no icon.** Big `font-display text-2xl` title, body owns the layout. Use for chat (Ask Vera), info dialogs, custom forms.
+      - **`<ConfirmDialog>` + `useConfirm()` — action confirmation, with icon.** Title rendered in **uppercase eyebrow typography** (`text-[0.78rem] tracking-[0.18em] uppercase`) — **imperative, not a question**: "Cancel this run", not "Cancel this run?". Description is the body, left-aligned to the modal edge. Right-aligned button row: `secondary` cancel + `primary`/`destructive` confirm. Use whenever the user must pick between two paths.
+    - **Toast icons** — five distinct silhouettes (circle / octagon / triangle / rounded square / arc) so info ≠ error even ignoring color. Info uses the `--color-info` slate-blue token — the one cool tone in the otherwise warm palette.
+
+12. **User-facing strings never expose internal identifiers.** No `rooflink_lineitems` in an email subject; the user reads "Rooflink estimate line items". Snake_case, kebab-case, and camelCase belong in code, not in copy. Maintain a friendly-label map alongside any enum.
+
+13. **Shared UI primitives live in `@vera/ui`, not in page files.** If you're about to write a small headless component (tabs, modal, dropdown) inline in a page, stop and add it to `shared/ui/src/components/` first, then import from `@vera/ui`. Page-local one-offs accumulate into N copies of slightly different tab buttons. The design system page at `/design` is the inventory of what already exists — check there before adding anything new.
 
 ---
 
@@ -204,6 +213,23 @@ For DB mutations where the generic summary would be ugly (*"Schedule #23 updated
 - **Adding a category/action means updating `shared/types/audit.ts`.** UI filters and the API's Zod schema read from that catalog at build time.
 - **Models opting INTO audit go in `AUDITABLE_MODELS`.** Default is no-audit. We choose to surface what's meaningful rather than auto-log everything.
 - **`AuditLog` itself is NOT auditable.** That would recurse infinitely. It's already excluded.
+
+### Every new mutation surface MUST land in the audit log
+
+When you add a new feature with a mutating route, terminal state transition, or cron-triggered action, the PR is not complete until it emits an audit row. **This is a merge gate, not a polish item.** The two-question test:
+
+1. *"If an operator opens `/dashboard/audit-logs` after this action happens, will they see a row that describes it?"* If no, you need a `recordAudit` call.
+2. *"If a future-me has to reconstruct what happened from this row alone, do `summary` + `details` carry enough?"* If no, enrich the payload (before/after snapshot, recipient, run id, error, model — whatever the category warrants).
+
+Practical checklist when shipping a new module:
+
+- Add the category to `AUDIT_CATEGORIES` and the actions to `AUDIT_ACTIONS_BY_CATEGORY` in `shared/types/audit.ts`. Add a `humanizeAction` entry per action; otherwise the table label falls back to title-cased snake_case (acceptable but uglier).
+- Call `recordAudit(db, {...})` after every successful mutation in user-gated routes (already wrapped by `withAuth`).
+- For cron loops or worker jobs that drive state machines, emit at terminal transitions only (e.g. `run_completed`, `run_failed`) — not per-tick. Per-tick events would drown out the signal.
+- Add a `*Body` renderer to the `AuditDetailSheet` in `apps/web/app/dashboard/audit-logs/AuditLogsView.tsx` so the new category gets a formatted detail view, not raw JSON.
+- Cover at least one happy-path action of the new category in a Playwright spec so the integration can't silently regress.
+
+If the category-action catalog and the route's `recordAudit` call disagree, the API still accepts the row (the action column is a plain string), but UI filter dropdowns won't surface the new action. So: catalog first, then the route call.
 
 ### Privacy note
 

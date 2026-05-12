@@ -30,14 +30,26 @@ export default async function globalSetup(): Promise<void> {
         // SendLog.scheduleId is ON DELETE SET NULL, so historical send rows
         // survive the Schedule wipe with their tenantId/cadence/recipient
         // intact — only the FK back-reference is nulled.
+        //
+        // BackfillRun.scheduleId references BackfillSchedule — delete runs
+        // before schedules so the FK doesn't block.
         input:
-          'DELETE FROM "AuditLog";\nDELETE FROM "Briefing";\nDELETE FROM "Schedule";\n',
+          'DELETE FROM "AuditLog";\n' +
+          'DELETE FROM "Briefing";\n' +
+          'DELETE FROM "Schedule";\n' +
+          'DELETE FROM "RawRooflinkJob";\n' +
+          'DELETE FROM "RawRooflinkLineItems";\n' +
+          'DELETE FROM "BackfillRun";\n' +
+          'DELETE FROM "BackfillSchedule";\n' +
+          'DELETE FROM "FailureNotificationSetting";\n',
         env: { ...process.env, DATABASE_URL: dbUrl },
         stdio: ['pipe', 'ignore', 'inherit'],
       },
     );
     // eslint-disable-next-line no-console
-    console.log('[playwright] cleared AuditLog, Briefing, Schedule tables');
+    console.log(
+      '[playwright] cleared AuditLog, Briefing, Schedule, Backfill* tables',
+    );
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[playwright] DB reset failed — specs may be non-deterministic:', e);
