@@ -26,7 +26,8 @@ import { ConfirmDialog } from './ConfirmDialog';
  * The provider is mounted once at the app root (see ConfirmProvider).
  */
 export interface ConfirmOptions {
-  /** Imperative action label, NOT a question. Rendered uppercase tracked.
+  /** Imperative action label, NOT a question. Rendered in display-serif
+   *  heading style (matches <Modal>). Sentence-case.
    *  e.g. "Cancel this run", "Remove schedule" — not "Cancel this run?" */
   title: ReactNode;
   /** Main body — what happens, who's affected, what's lost. */
