@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -14,6 +15,11 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'Design system',
+  robots: { index: false, follow: false },
+};
 import {
   AgingChip,
   AnomalyTag,
@@ -674,10 +680,13 @@ export default function DesignSystemPreview() {
                 <strong className="text-text-primary">
                   &lt;ConfirmDialog&gt; — action confirmation, with icon.
                 </strong>{' '}
-                Icon block + title rendered in <strong>uppercase eyebrow typography</strong>{' '}
-                (imperative, not a question — &quot;Cancel this run&quot;, not &quot;Cancel
-                this run?&quot;) + description as the body, left-aligned. Use via{' '}
-                <code>useConfirm()</code>.
+                Same display-serif title as <code>&lt;Modal&gt;</code>; what
+                signals &quot;confirmation&quot; is the{' '}
+                <strong>tinted icon block</strong> to the left (accent or
+                heat-critical). Title is imperative, not a question —
+                &quot;Cancel this run&quot;, not &quot;Cancel this run?&quot;.
+                Description as the body, left-aligned. Close X hidden — user
+                must pick a button. Use via <code>useConfirm()</code>.
               </li>
             </ul>
           </Section>

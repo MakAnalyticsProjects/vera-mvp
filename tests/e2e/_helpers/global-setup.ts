@@ -10,6 +10,8 @@ import { join } from 'node:path';
  * - Wipes the `Schedule` table so scheduler specs start from a known empty
  *   state (the natural-key unique index means a stale row from a prior run
  *   would block PUTs that expect to be the first write).
+ * - Wipes the `AuditLog` table so audit-log specs can assert on row
+ *   counts deterministically.
  *
  * No-op if DATABASE_URL is unset (DB-less local runs of public-route specs).
  */
@@ -32,6 +34,7 @@ export default async function globalSetup(): Promise<void> {
         // BackfillRun.scheduleId references BackfillSchedule — delete runs
         // before schedules so the FK doesn't block.
         input:
+          'DELETE FROM "AuditLog";\n' +
           'DELETE FROM "Briefing";\n' +
           'DELETE FROM "Schedule";\n' +
           'DELETE FROM "RawRooflinkJob";\n' +
@@ -44,7 +47,9 @@ export default async function globalSetup(): Promise<void> {
       },
     );
     // eslint-disable-next-line no-console
-    console.log('[playwright] cleared Briefing and Schedule tables');
+    console.log(
+      '[playwright] cleared AuditLog, Briefing, Schedule, Backfill* tables',
+    );
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[playwright] DB reset failed — specs may be non-deterministic:', e);

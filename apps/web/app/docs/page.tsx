@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -11,6 +12,12 @@ import {
 } from 'lucide-react';
 import { Button } from '@vera/ui';
 import { PageNav } from '../_components/PageNav';
+
+export const metadata: Metadata = {
+  title: 'How I work',
+  description:
+    'A tour of how Vera runs the AR desk — daily, weekly, and monthly playbooks for a roofing accounts receivable specialist.',
+};
 
 const SECTIONS = [
   { id: 'what-vera-is', label: 'Who I am' },

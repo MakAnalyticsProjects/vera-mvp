@@ -8,26 +8,29 @@ import { Modal } from './Modal';
 
 /**
  * Confirmation dialog — composes <Modal> and layers a direct, compact
- * confirmation layout on top. Distinct from <Modal>'s content surface
- * (which uses a big display-serif title and free body):
+ * confirmation layout on top. Shares the same display-serif title
+ * typography as <Modal>, but adds:
  *
- *   ▸ Icon block at the left (AlertTriangle by default, override via `icon`)
- *   ▸ Title rendered in **uppercase tracked eyebrow typography** (12px,
- *     letter-spacing 0.18em) — the imperative label of the action, not a
- *     question. e.g. "CANCEL THIS RUN", "REMOVE SCHEDULE", "DELETE USER".
- *   ▸ Description as the main body — full-size paragraph, left-aligned to
- *     the modal edge (no icon-induced indent).
+ *   ▸ Icon block to the left of the title (AlertTriangle by default,
+ *     override via `icon`). Tints accent or heat-critical based on
+ *     `destructive`. This is what visually distinguishes a confirmation
+ *     from a content modal.
+ *   ▸ Title in the canonical Modal heading style — `font-display text-2xl
+ *     tracking-tight`, sentence-case imperative ("Cancel this run",
+ *     "Save changes"), NOT a question.
+ *   ▸ Description as the body — left-aligned to the modal edge.
  *   ▸ Right-aligned button row: secondary cancel + primary/destructive
- *     confirm.
+ *     confirm. Hidden X close button — user must pick a button.
  *
  * For content modals (chat, info, custom forms) use <Modal> directly — it
- * keeps the display-serif title and lets your body own the layout. The
- * design system page at /design#toasts-modals shows both side by side.
+ * lets your body own the layout. The design system page at
+ * /design#toasts-modals shows both side by side.
  */
 export interface ConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Imperative action label. Rendered uppercase tracked, NOT as a question.
+  /** Imperative action label, NOT a question. Rendered in display-serif
+   *  heading style (same as <Modal>). Sentence-case.
    *  e.g. "Cancel this run", "Remove schedule", "Delete user". */
   title: ReactNode;
   /** Main body text — what will happen, who's affected, blast radius. */
@@ -86,8 +89,12 @@ export function ConfirmDialog({
       aria-label={typeof title === 'string' ? title : 'Confirm'}
     >
       <div data-testid="confirm-dialog">
-        {/* Icon + title-as-eyebrow share a single horizontal row. */}
-        <div className="mb-3 flex items-center gap-2.5">
+        {/* Icon block (36px) is slightly taller than the title line box
+            (~30px), so center-align both — top-aligning leaves the icon
+            sitting visibly low next to the serif glyphs. Titles are
+            single-line imperatives; if one ever wraps, add `self-start`
+            to the icon and a small `mt-` to nudge it onto line 1. */}
+        <div className="mb-4 flex items-center gap-3">
           <div
             className={cn(
               'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
@@ -98,12 +105,12 @@ export function ConfirmDialog({
           >
             {icon ?? <AlertTriangle className="h-4 w-4" aria-hidden="true" />}
           </div>
-          <p
-            className="text-text-primary text-[0.78rem] font-semibold tracking-[0.18em] uppercase leading-tight"
+          <h2
+            className="font-display text-text-primary text-2xl leading-tight tracking-tight"
             data-testid="confirm-dialog-title"
           >
             {title}
-          </p>
+          </h2>
         </div>
         {description ? (
           <p className="text-text-secondary text-sm leading-relaxed">{description}</p>

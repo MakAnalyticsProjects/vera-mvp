@@ -10,6 +10,7 @@ import {
   escapeEmailHtml,
   EMAIL_COLORS,
 } from '@/lib/email-layout';
+import { recordAudit } from '@/lib/audit';
 
 /**
  * Core tick logic. Pure-ish wrapper that:
@@ -193,6 +194,27 @@ async function markFailed(runId: number, reason: string): Promise<void> {
       claimedAt: null,
     },
   });
+  // Audit: terminal-state transition. userId=null because the tick worker
+  // runs as a system task (cron-triggered or chained from a manual run-now;
+  // either way the failure isn't attributable to a user keystroke).
+  await recordAudit(db, {
+    tenantId: run.tenantId,
+    userId: null,
+    userEmail: null,
+    category: 'backfill',
+    action: 'run_failed',
+    entityType: 'BackfillRun',
+    entityId: String(run.id),
+    summary: `${friendlySourceLabel(run.source)} backfill run #${run.id} failed`,
+    details: {
+      source: run.source,
+      runId: run.id,
+      mode: run.mode,
+      itemsProcessed: run.itemsProcessed,
+      itemsTotal: run.itemsTotal,
+      reason,
+    },
+  });
   // Stdout log so failures are grep-able in `/tmp/vera-dev.log`.
   // eslint-disable-next-line no-console
   console.warn(
@@ -363,6 +385,28 @@ async function promote(
     },
   });
   if (!run) return;
+  // Audit: terminal-state transition. Same userId=null reasoning as
+  // markFailed — the worker is system-attributed regardless of whether
+  // the originating Run-now was manual.
+  await recordAudit(db, {
+    tenantId: run.tenantId,
+    userId: null,
+    userEmail: null,
+    category: 'backfill',
+    action: 'run_completed',
+    entityType: 'BackfillRun',
+    entityId: String(run.id),
+    summary: `${friendlySourceLabel(run.source)} ${run.mode} backfill completed (${run.itemsProcessed.toLocaleString()} ${run.itemsProcessed === 1 ? 'record' : 'records'})`,
+    details: {
+      source: run.source,
+      runId: run.id,
+      mode: run.mode,
+      itemsProcessed: run.itemsProcessed,
+      itemsTotal: run.itemsTotal,
+      startedAt: run.startedAt?.toISOString() ?? null,
+      finishedAt: run.finishedAt?.toISOString() ?? null,
+    },
+  });
   // eslint-disable-next-line no-console
   console.log(
     `[backfill] run #${run.id} (${run.source}) COMPLETED · ${run.itemsProcessed}/${run.itemsTotal ?? '?'} rows · mode=${run.mode}`,

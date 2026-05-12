@@ -16,8 +16,38 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Vera — AR Intelligence',
-  description: 'Vera Calloway, your Lead AR Intelligence Specialist.',
+  title: {
+    default: 'Vera Calloway · AI Intelligence',
+    template: 'Vera Calloway · %s',
+  },
+  description:
+    'An AI AR specialist for roofing contractors. Watches aging, surfaces anomalies, drafts follow-ups, runs the morning briefing.',
+  applicationName: 'Vera Calloway',
+  authors: [{ name: 'Priority Roofs' }],
+  keywords: [
+    'accounts receivable',
+    'roofing',
+    'AI assistant',
+    'AR aging',
+    'collections',
+  ],
+  openGraph: {
+    type: 'website',
+    siteName: 'Vera Calloway',
+    title: 'Vera Calloway · AI Intelligence',
+    description:
+      'An AI AR specialist for roofing contractors. Watches aging, surfaces anomalies, drafts follow-ups, runs the morning briefing.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Vera Calloway · AI Intelligence',
+    description:
+      'An AI AR specialist for roofing contractors. Watches aging, surfaces anomalies, drafts follow-ups, runs the morning briefing.',
+  },
+  themeColor: '#1A1614',
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

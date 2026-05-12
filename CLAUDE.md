@@ -27,9 +27,9 @@ This file is the source of truth for how code is written in this repository. Eve
 9. **The Neon DB is shared between local dev and production — there is no staging DB.** Migrations applied locally are instantly live in prod. Treat any script that `DELETE`s or `UPDATE`s more than a single row as production-data-loss-in-the-making, and get explicit user ACK before running it. Read-only queries don't need ACK.
 10. **Server (DB) is the source of truth for UI state.** Fetch from the DB on mount; `localStorage` is only a draft buffer for unsaved form input. Never trust the local cached value to match what the cron worker, another tab, or another user is seeing.
 11. **No native browser dialogs, no inline transient banners.** `window.alert()`, `window.confirm()`, and `window.prompt()` are forbidden — they look broken, can't be styled, and can't be tested without intercepting `page.on('dialog')`. Use `useConfirm()` from `@vera/ui` for confirmations and `toast()` from `@vera/ui` (sonner-backed) for success/error/loading feedback. Transient status (sent / saved / paused / cancel-confirmation / API error) goes through toasts, NOT inline `<div>` banners inside the page. Persistent state (a card's "last run failed" history line) stays on-page because it's informational, not transient. Long-running operations (backfill runs, multi-second jobs) use a persistent `toast.loading()` with a stable id and update-in-place — the toast IS the progress UI, no separate progress bar on the page. If you find yourself reaching for `setError` + a conditionally-rendered red div, that's a toast.
-    - **Modal flavors** — two patterns, share visual chrome (centered, `bg-bg-card`, `rounded-[var(--radius-card)]`, `p-7`, `shadow-2xl`) but differ in title typography and use case:
-      - **`<Modal>` — content surface, no icon.** Big `font-display text-2xl` title, body owns the layout. Use for chat (Ask Vera), info dialogs, custom forms.
-      - **`<ConfirmDialog>` + `useConfirm()` — action confirmation, with icon.** Title rendered in **uppercase eyebrow typography** (`text-[0.78rem] tracking-[0.18em] uppercase`) — **imperative, not a question**: "Cancel this run", not "Cancel this run?". Description is the body, left-aligned to the modal edge. Right-aligned button row: `secondary` cancel + `primary`/`destructive` confirm. Use whenever the user must pick between two paths.
+    - **Modal flavors** — two patterns, share the same visual chrome (centered, `bg-bg-card`, `rounded-[var(--radius-card)]`, `p-7`, `shadow-2xl`) AND the same display-serif title typography (`font-display text-2xl tracking-tight`). They differ only in what surrounds the title and in default behavior:
+      - **`<Modal>` — content surface, no icon.** Body owns the layout. Default close X top-right. Use for chat (Ask Vera), info dialogs, custom forms.
+      - **`<ConfirmDialog>` + `useConfirm()` — action confirmation, with icon.** Same display-serif title. Adds a tinted icon block to the left (accent or heat-critical) which is what visually signals "this is a confirmation." Title is an **imperative, not a question**: "Cancel this run", not "Cancel this run?". Description is the body, left-aligned to the modal edge. Close X hidden — user must pick a button. Right-aligned button row: `secondary` cancel + `primary`/`destructive` confirm. Use whenever the user must pick between two paths.
     - **Toast icons** — five distinct silhouettes (circle / octagon / triangle / rounded square / arc) so info ≠ error even ignoring color. Info uses the `--color-info` slate-blue token — the one cool tone in the otherwise warm palette.
 
 12. **User-facing strings never expose internal identifiers.** No `rooflink_lineitems` in an email subject; the user reads "Rooflink estimate line items". Snake_case, kebab-case, and camelCase belong in code, not in copy. Maintain a friendly-label map alongside any enum.
@@ -140,6 +140,52 @@ data/                      gitignored — source + generated artifacts
 
 ---
 
+## Loading states: skeleton-first
+
+Client components that fetch from the API on mount MUST render a skeleton — never default/empty state — until the first server response lands. Rendering "Not scheduled" or empty form fields for the 200-2000 ms before the fetch resolves produces a visible state jump when real data swaps in. Operators read that flash as a bug, even when it's "just" the loading window.
+
+### The rule
+
+If a client component issues a `fetch` from a `useEffect` on mount and the page's UI depends on the response, you need a separate `loaded: boolean` (or equivalent) flag that flips true exactly once when the first response settles. Render a `*Skeleton` variant of the layout until that flag flips. Subsequent refetches (filter changes, manual refresh) keep the previous data on-screen with a refresh-spinner affordance — no flash.
+
+### What the skeleton looks like
+
+- Same Card chrome, same vertical rhythm, same column widths as the real component. The skeleton's job is "show the structure of what's about to load" so the page doesn't shift when real data arrives.
+- Composed from `<Skeleton>` and `<SkeletonText>` in `@vera/ui`. `<SkeletonText width="w-32" />` for single-line text shimmers; raw `<Skeleton className="..." />` for icons / pills / buttons / non-text shapes.
+- Page-local: each component defines its own `*Skeleton` function colocated with the real one (`ReportRowSkeleton` next to `ReportRow`, `BackfillCardSkeleton` next to `BackfillCard`, etc.). The shared primitives keep the visual rhythm consistent without coercing every page into one shape.
+
+### Code shape
+
+```tsx
+const [loaded, setLoaded] = useState(false);
+const [data, setData] = useState<Server | null>(null);
+
+useEffect(() => {
+  (async () => {
+    try {
+      const res = await fetch('/api/...');
+      if (res.ok) setData(await res.json());
+    } finally {
+      setLoaded(true); // flip exactly once, even if the fetch failed,
+                      // so the page doesn't sit on skeletons forever
+    }
+  })();
+}, []);
+
+return loaded ? <RealCard data={data} /> : <RealCardSkeleton />;
+```
+
+### When SSR is a better answer
+
+If the page is on a server component whose route already touches the DB, SSR the data and pass it as a prop instead — no client fetch, no skeleton needed. We prefer skeleton-first when the client component is reused across multiple parent contexts, when it polls, or when the fetch is auth-dependent in a way that's awkward to thread from the server. Default to skeleton-first; reach for SSR when the wiring is naturally there.
+
+### Out of scope
+
+- One-shot fetches triggered by user action (e.g. "Send now") — those use button-level pending state, not skeleton rows.
+- Refetches that reuse already-rendered data (filter changes on `/dashboard/audit-logs`) — show a spinner on the refresh button, not a skeleton.
+
+---
+
 ## Components — shadcn + RHF + Zod pattern
 
 All form-bearing components follow this pattern:
@@ -186,12 +232,68 @@ shared/domain/
 
 ---
 
+## Audit logging
+
+Every meaningful action lands in the `AuditLog` table. The integration is mostly automatic — adding a new feature usually inherits logging without any code in the route itself. Two paths:
+
+### Auto path — DB mutations on auditable models
+
+A Prisma client extension at `apps/web/lib/db.ts` intercepts every `create/update/upsert/delete/updateMany/deleteMany` on models listed in `AUDITABLE_MODELS` (defined in `apps/web/lib/audit.ts`). It writes a row to `AuditLog` with a generic summary like *"Schedule #23 updated"*, attributed to whoever owns the AsyncLocalStorage audit context.
+
+**`AUDITABLE_MODELS` is currently empty by design.** Every V1 surface already emits explicit audit rows via the path below so they can carry pretty human-readable summaries. Opting a model INTO auto-audit would just produce a duplicate generic row alongside the pretty one. The extension stays wired in so a future model that doesn't need a custom summary can opt in with a one-line change to that set.
+
+**Adding a new auditable model is one line.** Add the model name to `AUDITABLE_MODELS` and (optionally) a `MODEL_CATEGORY` entry so the category column reads correctly. New feature inherits logging.
+
+The default behavior is **no audit** — only models you add to the set are tracked. This keeps noise low and avoids the duplicate-row problem.
+
+### Explicit path — non-DB events and pretty summaries
+
+For events that don't touch Prisma (auth callbacks, chat queries, external-API responses) call `recordAudit(db, { category, action, summary, details? })` directly. The category MUST exist in `shared/types/audit.ts`; the action SHOULD exist in `AUDIT_ACTIONS_BY_CATEGORY[category]` for that category (the API's Zod validator accepts arbitrary action strings to allow forward-compat, but UI filters only surface known actions).
+
+For DB mutations where the generic summary would be ugly (*"Schedule #23 updated"* vs *"Daily AR brief paused"*), wrap the mutation in `withSuppressedAutoAudit(() => ...)` and follow it with an explicit `recordAudit(...)`. One row per action, prettily phrased.
+
+### Hard requirements
+
+- **User-gated routes use `withAuth(handler)`.** That helper populates the audit context. Without it, DB mutations from the route skip audit (silent failure). Non-negotiable.
+- **System tasks (cron handlers, scripts) use `withSystemAuditContext({ tenantId }, fn)`.** Same pattern, `userId = null`. Cron loops wrap their per-tenant work with this.
+- **Adding a category/action means updating `shared/types/audit.ts`.** UI filters and the API's Zod schema read from that catalog at build time.
+- **Models opting INTO audit go in `AUDITABLE_MODELS`.** Default is no-audit. We choose to surface what's meaningful rather than auto-log everything.
+- **`AuditLog` itself is NOT auditable.** That would recurse infinitely. It's already excluded.
+
+### Every new mutation surface MUST land in the audit log
+
+When you add a new feature with a mutating route, terminal state transition, or cron-triggered action, the PR is not complete until it emits an audit row. **This is a merge gate, not a polish item.** The two-question test:
+
+1. *"If an operator opens `/dashboard/audit-logs` after this action happens, will they see a row that describes it?"* If no, you need a `recordAudit` call.
+2. *"If a future-me has to reconstruct what happened from this row alone, do `summary` + `details` carry enough?"* If no, enrich the payload (before/after snapshot, recipient, run id, error, model — whatever the category warrants).
+
+Practical checklist when shipping a new module:
+
+- Add the category to `AUDIT_CATEGORIES` and the actions to `AUDIT_ACTIONS_BY_CATEGORY` in `shared/types/audit.ts`. Add a `humanizeAction` entry per action; otherwise the table label falls back to title-cased snake_case (acceptable but uglier).
+- Call `recordAudit(db, {...})` after every successful mutation in user-gated routes (already wrapped by `withAuth`).
+- For cron loops or worker jobs that drive state machines, emit at terminal transitions only (e.g. `run_completed`, `run_failed`) — not per-tick. Per-tick events would drown out the signal.
+- Add a `*Body` renderer to the `AuditDetailSheet` in `apps/web/app/dashboard/audit-logs/AuditLogsView.tsx` so the new category gets a formatted detail view, not raw JSON.
+- Cover at least one happy-path action of the new category in a Playwright spec so the integration can't silently regress.
+
+If the category-action catalog and the route's `recordAudit` call disagree, the API still accepts the row (the action column is a plain string), but UI filter dropdowns won't surface the new action. So: catalog first, then the route call.
+
+### Summaries are plain text
+
+The `summary` column is rendered as plain text in the audit-log table AND inside the detail sheet header. Source data that happens to be markdown (AI-generated briefing headlines with `**bold**`, list items, etc.) will show literal asterisks if interpolated raw. **Strip markdown before storing** — use `toPlainSummary(s)` from `lib/audit.ts`. Same applies to any markdown-bearing field copied into `details` that the per-category renderer surfaces directly (e.g. the headline callout in `BriefingBody`). Audit storage is a display surface, not a content store.
+
+### Privacy note
+
+Chat audit entries capture the user's question text in `details.messages` (within-tenant only, gated by session). Mutation entries capture before/after row snapshots. Don't audit anything you wouldn't want a tenant admin to see.
+
+---
+
 ## API routes (`apps/web/app/api/*`)
 
 - Each route validates its input with Zod (request body, query params).
 - Return JSON with consistent shapes; no naked strings.
 - Errors return `{ error: { code, message } }` with appropriate HTTP status.
 - Never log secrets. Never echo `ANTHROPIC_API_KEY`.
+- **Auth-gated routes use `withAuth(handler)`** from `lib/auth-helpers.ts`. That helper authenticates, returns 401 if needed, and sets the AsyncLocalStorage audit context so DB mutations inside the route auto-log. System tasks (cron handlers, scripts) use `withSystemAuditContext({ tenantId }, fn)` from `lib/audit-context.ts`. See [Audit logging](#audit-logging) for the full pattern.
 
 ### Routes in MVP
 
