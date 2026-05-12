@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateBriefingForTenant } from '@/lib/briefing-generator';
 import { withAuth } from '@/lib/auth-helpers';
-import { recordAudit } from '@/lib/audit';
+import { recordAudit, toPlainSummary } from '@/lib/audit';
 import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -54,9 +54,11 @@ export async function POST() {
         action: 'regenerated',
         entityType: 'Briefing',
         entityId: result.briefingId ? String(result.briefingId) : null,
-        summary: `Briefing regenerated: ${result.headline}`,
+        // Headlines are markdown — strip the inline emphasis markers
+        // before they leak into the plain-text audit log surface.
+        summary: `Briefing regenerated: ${toPlainSummary(result.headline)}`,
         details: {
-          headline: result.headline,
+          headline: toPlainSummary(result.headline),
           sources: { count: sources.length },
           model: 'gpt-4o',
         },

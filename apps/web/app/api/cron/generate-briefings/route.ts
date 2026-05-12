@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { generateBriefingForTenant } from '@/lib/briefing-generator';
 import { verifyCronAuth } from '@/lib/cron-auth';
 import { withSystemAuditContext } from '@/lib/audit-context';
-import { recordAudit } from '@/lib/audit';
+import { recordAudit, toPlainSummary } from '@/lib/audit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -52,8 +52,10 @@ export async function POST(req: Request) {
           action: 'generated_daily',
           entityType: 'Briefing',
           entityId: r.briefingId ? String(r.briefingId) : null,
-          summary: `Daily briefing generated: ${r.headline}`,
-          details: { headline: r.headline, model: 'gpt-4o' },
+          // Headlines are markdown — strip inline emphasis markers before
+          // they leak into the plain-text audit log surface.
+          summary: `Daily briefing generated: ${toPlainSummary(r.headline)}`,
+          details: { headline: toPlainSummary(r.headline), model: 'gpt-4o' },
         });
         results.push({
           tenantId: t.id,

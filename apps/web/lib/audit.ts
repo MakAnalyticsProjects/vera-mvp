@@ -99,6 +99,35 @@ interface RecordAuditInput {
 }
 
 /**
+ * Strip the common markdown markers from a string so it renders as
+ * clean plain text in audit-log surfaces (the table summary column,
+ * the detail sheet header). The catalyst for this helper: AI-generated
+ * briefing headlines come back with `**bold**` and `_italic_` markers
+ * that look correct in the briefing card (which renders markdown) but
+ * appear as literal asterisks/underscores in the audit log (plain
+ * text). Audit summaries are display strings, never markdown — strip
+ * source content before interpolating it.
+ *
+ * Doesn't try to be a full markdown parser; just kills the markers
+ * we've actually seen leak in practice:
+ *   - `**bold**`  → `bold`
+ *   - `__bold__`  → `bold`
+ *   - `*italic*`  → `italic`
+ *   - `_italic_`  → `italic`
+ *   - `` `code` ``→ `code`
+ *
+ * If we ever see another marker leak (e.g. `[link](url)`), add it here.
+ */
+export function toPlainSummary(s: string): string {
+  return s
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '$1')
+    .replace(/(?<!_)_([^_\n]+)_(?!_)/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1');
+}
+
+/**
  * Explicitly write an audit row. Use for:
  *   - Non-DB events (auth callbacks, chat messages, etc).
  *   - Custom human-readable summaries on top of auto-logged mutations

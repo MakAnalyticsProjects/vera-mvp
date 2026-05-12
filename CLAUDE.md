@@ -277,6 +277,10 @@ Practical checklist when shipping a new module:
 
 If the category-action catalog and the route's `recordAudit` call disagree, the API still accepts the row (the action column is a plain string), but UI filter dropdowns won't surface the new action. So: catalog first, then the route call.
 
+### Summaries are plain text
+
+The `summary` column is rendered as plain text in the audit-log table AND inside the detail sheet header. Source data that happens to be markdown (AI-generated briefing headlines with `**bold**`, list items, etc.) will show literal asterisks if interpolated raw. **Strip markdown before storing** — use `toPlainSummary(s)` from `lib/audit.ts`. Same applies to any markdown-bearing field copied into `details` that the per-category renderer surfaces directly (e.g. the headline callout in `BriefingBody`). Audit storage is a display surface, not a content store.
+
 ### Privacy note
 
 Chat audit entries capture the user's question text in `details.messages` (within-tenant only, gated by session). Mutation entries capture before/after row snapshots. Don't audit anything you wouldn't want a tenant admin to see.
