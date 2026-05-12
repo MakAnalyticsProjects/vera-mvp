@@ -155,7 +155,15 @@ export function renderEmailLayout(opts: EmailLayoutOptions): string {
                 </p>`
               : ''
           }
-          <hr style="border:none;border-top:1px solid ${COLORS.border};margin:24px 0 18px 0;" />
+          <!-- Visual divider — styled <div> instead of <hr> on purpose.
+               Gmail's quoted-text / signature heuristic specifically
+               pattern-matches the <hr> tag followed by a short footer
+               line and collapses everything from that point under
+               "··· show trimmed content". A border-top'd div renders
+               pixel-identically but doesn't trip the same parser path,
+               so the CTA above and the footer below stay visible by
+               default. -->
+          <div style="border-top:1px solid ${COLORS.border};height:0;font-size:0;line-height:0;margin:24px 0 18px 0;" aria-hidden="true">&nbsp;</div>
           <p style="margin:0;font-size:11px;color:${COLORS.textMuted};letter-spacing:0.02em;">${escapeHtml(footer)}</p>
         </td>
       </tr>
