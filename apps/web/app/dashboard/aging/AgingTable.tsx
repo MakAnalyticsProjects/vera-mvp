@@ -13,7 +13,7 @@ import {
   TableShell,
   Tooltip,
 } from '@vera/ui';
-import { formatUSD } from '@vera/utils';
+import { formatUSD, formatUSDate } from '@vera/utils';
 import type { ARJob, AnomalyFlag } from '@vera/types';
 import { JobDetailSheet } from '../_components/JobDetailSheet';
 
@@ -30,7 +30,13 @@ const ANOMALY_LABELS: Record<AnomalyFlag, string> = {
 };
 
 const COLUMNS = [
-  { key: 'job', label: 'Job', tooltip: 'Address and job classification.' },
+  { key: 'job', label: 'Job', tooltip: 'Address, region, type, and install date.' },
+  {
+    key: 'customer',
+    label: 'Customer',
+    width: '160px',
+    tooltip: 'Customer name from Rooflink.',
+  },
   { key: 'rep', label: 'Rep', width: '160px', tooltip: 'Sales rep responsible for the install.' },
   {
     key: 'balance',
@@ -91,7 +97,8 @@ export function AgingTable({
                 <TableCell>
                   <p className="text-text-primary font-medium">{job.address}</p>
                   <p className="text-text-muted mt-0.5 text-xs">
-                    {job.region ?? '—'} · {job.isInsurance ? 'Insurance' : 'Retail'}
+                    {job.region ?? '—'} · {job.isInsurance ? 'Insurance' : 'Retail'} ·
+                    {' '}Installed {formatUSDate(job.dateCompleted)}
                   </p>
                   {job.anomalies.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -125,6 +132,9 @@ export function AgingTable({
                       ) : null}
                     </div>
                   ) : null}
+                </TableCell>
+                <TableCell className="text-text-secondary">
+                  {job.customerName ?? '—'}
                 </TableCell>
                 <TableCell className="text-text-secondary">
                   {job.rep?.name ?? 'Unassigned'}

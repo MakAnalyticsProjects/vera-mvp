@@ -8,7 +8,7 @@ import {
   MissingStepTag,
   Tooltip,
 } from '@vera/ui';
-import { formatUSD } from '@vera/utils';
+import { formatUSD, formatUSDate } from '@vera/utils';
 import { generateFollowUpDraft } from '@vera/domain';
 import type { ARJob } from '@vera/types';
 import { JobDetailSheet } from '../_components/JobDetailSheet';
@@ -46,9 +46,13 @@ function FollowUpRow({ job, onOpen }: { job: ARJob; onOpen: () => void }) {
       <div className="flex h-full flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-6">
         <div className="min-w-0 flex-1 space-y-2">
           <p className="font-display truncate text-lg tracking-tight sm:text-xl">{job.address}</p>
+          <p className="text-text-primary truncate text-sm font-medium">
+            {job.customerName ?? '—'}
+          </p>
           <p className="text-text-secondary text-sm">
             {job.rep?.name ?? 'Unassigned'} · {job.region ?? '—'} ·{' '}
-            {job.isInsurance ? 'Insurance' : 'Retail'} · {job.daysSinceInstall} days post-install
+            {job.isInsurance ? 'Insurance' : 'Retail'} · Installed{' '}
+            {formatUSDate(job.dateCompleted)}
           </p>
           {job.missingMilestones.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 pt-1">

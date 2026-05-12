@@ -23,8 +23,8 @@ test.describe('Write-offs report', () => {
     await page.waitForTimeout(800);
     const firstRow = page.locator('table tbody tr').first();
     await expect(firstRow).toBeVisible();
-    // MM/DD/YYYY cell on every row
-    await expect(firstRow.locator('td').nth(2)).toContainText(/\d{2}\/\d{2}\/\d{4}/);
+    // Install date sits inside the Job cell tagline as "Installed MM/DD/YYYY".
+    await expect(firstRow.locator('td').first()).toContainText(/Installed \d{2}\/\d{2}\/\d{4}/);
   });
 
   test('clicking a row opens the WriteOffDetailSheet with reconciliation', async ({

@@ -2,23 +2,23 @@
 
 import { useState } from 'react';
 import { Table, TableCell, TableHead, TableRow, TableShell } from '@vera/ui';
-import { formatUSD } from '@vera/utils';
+import { formatUSD, formatUSDate } from '@vera/utils';
 import type { WriteOffRecord } from '@vera/types';
 import { WriteOffDetailSheet } from './WriteOffDetailSheet';
 
 const COLUMNS = [
-  { key: 'job', label: 'Customer & job', tooltip: 'Customer name and install address.' },
+  { key: 'job', label: 'Job', tooltip: 'Install address, region, and install date.' },
+  {
+    key: 'customer',
+    label: 'Customer',
+    width: '160px',
+    tooltip: 'Customer name from Rooflink.',
+  },
   {
     key: 'rep',
     label: 'Rep',
     width: '160px',
     tooltip: 'Sales rep on the job.',
-  },
-  {
-    key: 'installDate',
-    label: 'Install date',
-    width: '120px',
-    tooltip: 'date_completed on the Rooflink job, formatted MM/DD/YYYY.',
   },
   {
     key: 'amountWithheld',
@@ -66,16 +66,16 @@ export function WriteOffsTable({
                 className="cursor-pointer vera-press"
               >
                 <TableCell>
-                  <p className="text-text-primary font-medium">
-                    {r.customerName || '—'}
+                  <p className="text-text-primary font-medium">{r.address || '—'}</p>
+                  <p className="text-text-muted mt-0.5 text-xs">
+                    {r.region ?? '—'} · Installed {formatUSDate(r.installDate)}
                   </p>
-                  <p className="text-text-muted mt-0.5 text-xs">{r.address || '—'}</p>
+                </TableCell>
+                <TableCell className="text-text-secondary">
+                  {r.customerName || '—'}
                 </TableCell>
                 <TableCell className="text-text-secondary">
                   {r.repName ?? 'Unassigned'}
-                </TableCell>
-                <TableCell className="tabular-nums text-text-secondary text-sm">
-                  {formatUSDate(r.installDate)}
                 </TableCell>
                 <TableCell align="right" className="tabular-nums">
                   <span className="text-heat-critical font-semibold">
@@ -105,12 +105,3 @@ export function WriteOffsTable({
   );
 }
 
-function formatUSDate(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${mm}/${dd}/${yyyy}`;
-}

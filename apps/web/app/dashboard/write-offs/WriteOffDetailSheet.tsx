@@ -1,7 +1,7 @@
 'use client';
 
 import { Sheet } from '@vera/ui';
-import { formatUSD } from '@vera/utils';
+import { formatUSD, formatUSDate } from '@vera/utils';
 import type { WriteOffRecord } from '@vera/types';
 
 interface LineItem {
@@ -239,16 +239,6 @@ function LineItemGroup({
 function sumPrice(items: LineItem[] | undefined, key: 'rcv' | 'price'): number {
   if (!items || items.length === 0) return 0;
   return items.reduce((sum, it) => sum + (typeof it[key] === 'number' ? (it[key] as number) : 0), 0);
-}
-
-function formatUSDate(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${mm}/${dd}/${yyyy}`;
 }
 
 function Stat({ label, value }: { label: string; value: React.ReactNode }) {

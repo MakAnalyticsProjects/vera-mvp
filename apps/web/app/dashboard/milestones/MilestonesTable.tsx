@@ -12,12 +12,18 @@ import {
   TableShell,
   Tooltip,
 } from '@vera/ui';
-import { formatUSD } from '@vera/utils';
+import { formatUSD, formatUSDate } from '@vera/utils';
 import type { ARJob } from '@vera/types';
 import { JobDetailSheet } from '../_components/JobDetailSheet';
 
 const COLUMNS = [
-  { key: 'job', label: 'Job', tooltip: 'Address and job classification.' },
+  { key: 'job', label: 'Job', tooltip: 'Address, region, type, and install date.' },
+  {
+    key: 'customer',
+    label: 'Customer',
+    width: '160px',
+    tooltip: 'Customer name from Rooflink.',
+  },
   {
     key: 'rep',
     label: 'Rep',
@@ -77,8 +83,11 @@ export function MilestonesTable({
                   <p className="text-text-primary font-medium">{job.address}</p>
                   <p className="text-text-muted mt-0.5 text-xs">
                     {job.region ?? '—'} · {job.isInsurance ? 'Insurance' : 'Retail'} ·{' '}
-                    {job.daysSinceInstall} days post-install
+                    Installed {formatUSDate(job.dateCompleted)}
                   </p>
+                </TableCell>
+                <TableCell className="text-text-secondary">
+                  {job.customerName ?? '—'}
                 </TableCell>
                 <TableCell className="text-text-secondary">
                   {job.rep?.name ?? 'Unassigned'}
