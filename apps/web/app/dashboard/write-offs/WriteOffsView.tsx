@@ -30,18 +30,34 @@ export function WriteOffsView({ file }: { file: WriteOffsFile }) {
     'regions',
     parseAsArrayOf(parseAsString).withDefault([]),
   );
+  const [statusFilter, setStatusFilter] = useQueryState(
+    'status',
+    parseAsArrayOf(parseAsString).withDefault([]),
+  );
 
   const filterGroups: FilterGroup[] = useMemo(() => {
     const repCounts = new Map<string, number>();
     const regionCounts = new Map<string, number>();
+    let activeCount = 0;
+    let paidCount = 0;
     for (const r of file.records) {
       if (r.repName) repCounts.set(r.repName, (repCounts.get(r.repName) ?? 0) + 1);
       if (r.region) regionCounts.set(r.region, (regionCounts.get(r.region) ?? 0) + 1);
+      if ((r.balance ?? 0) > 0) activeCount++;
+      else paidCount++;
     }
     const repOptions = [...repCounts.entries()]
       .map(([name, count]) => ({ value: name, label: name, count }))
       .sort((a, b) => b.count - a.count);
     return [
+      {
+        key: 'status',
+        label: 'Status',
+        options: [
+          { value: 'active', label: 'Active AR', count: activeCount },
+          { value: 'paid', label: 'Paid off', count: paidCount },
+        ],
+      },
       {
         key: 'reps',
         label: 'Rep',
@@ -63,9 +79,13 @@ export function WriteOffsView({ file }: { file: WriteOffsFile }) {
     return file.records.filter((r) => {
       if (repFilter.length > 0 && !repFilter.includes(r.repName ?? '')) return false;
       if (regionFilter.length > 0 && !regionFilter.includes(r.region ?? '')) return false;
+      if (statusFilter.length > 0) {
+        const status = (r.balance ?? 0) > 0 ? 'active' : 'paid';
+        if (!statusFilter.includes(status)) return false;
+      }
       return true;
     });
-  }, [file.records, repFilter, regionFilter]);
+  }, [file.records, repFilter, regionFilter, statusFilter]);
 
   const sorted = useMemo(
     () => [...filtered].sort((a, b) => b.amountWithheld - a.amountWithheld),
@@ -79,7 +99,7 @@ export function WriteOffsView({ file }: { file: WriteOffsFile }) {
   const safePageSize = pageSize as PageSize;
   const paged = sorted.slice((page - 1) * safePageSize, page * safePageSize);
 
-  const filterCount = repFilter.length + regionFilter.length;
+  const filterCount = repFilter.length + regionFilter.length + statusFilter.length;
   const narrative = composeNarrative({
     count: sorted.length,
     total: totalWithheld,
@@ -107,15 +127,15 @@ export function WriteOffsView({ file }: { file: WriteOffsFile }) {
           value={formatUSD(totalWithheld)}
           hint="Amount Withheld across this view"
           emphasis="critical"
-          tooltip="Sum of the Amount Withheld discount (Rooflink product_id 71493) across every AR job in the current filter. This is revenue PR will not collect from insurance, agreed at estimate time."
+          tooltip="Sum of the Amount Withheld discount (Rooflink product_id 71493) across every job in the current filter. This is revenue PR will not collect from insurance, agreed at estimate time."
         />
         <MetricTile
           label="Jobs with write-offs"
           numericValue={sorted.length}
           value={sorted.length}
-          hint={`of ${file.totals.candidatesFetched} AR jobs scanned`}
+          hint={`of ${file.totals.candidatesFetched} jobs scanned`}
           emphasis="accent"
-          tooltip="AR-set jobs where Rooflink's line-items endpoint returned an Amount Withheld discount. Scope is the AR working set: completed jobs with outstanding balance."
+          tooltip="Jobs where Rooflink's line-items endpoint returned an Amount Withheld discount. Scope: every job with a primary estimate installed on or after 2024-01-01 — toggle the Status filter to narrow to active AR or paid-off jobs."
         />
         <MetricTile
           label="Average write-off"
@@ -146,10 +166,15 @@ export function WriteOffsView({ file }: { file: WriteOffsFile }) {
         >
           <FilterMenu
             groups={filterGroups}
-            selected={{ reps: repFilter, regions: regionFilter }}
+            selected={{
+              reps: repFilter,
+              regions: regionFilter,
+              status: statusFilter,
+            }}
             onSelectedChange={(next) => {
               setRepFilter(next.reps ?? []);
               setRegionFilter(next.regions ?? []);
+              setStatusFilter(next.status ?? []);
               setPage(1);
             }}
           />
@@ -193,9 +218,9 @@ function composeNarrative({
   candidatesFetched: number;
 }): string {
   if (count === 0) {
-    return 'No Amount Withheld discounts on any AR job in this view. Either the estimates collected in full or the data has not been refreshed.';
+    return 'No Amount Withheld discounts on any job in this view. Either the estimates collected in full or the data has not been refreshed.';
   }
   const totalFmt = formatUSD(total);
   const largestFmt = formatUSD(largest);
-  return `${count} ${count === 1 ? 'AR job has' : 'AR jobs have'} an Amount Withheld discount on the estimate — ${totalFmt} of revenue foregone in total, with the largest single concession at ${largestFmt}. The table below is sorted by amount; clicking a row shows the full line-item breakdown so you can see how the insurance scope reconciles to the contract price.`;
+  return `${count} ${count === 1 ? 'job has' : 'jobs have'} an Amount Withheld discount on the estimate — ${totalFmt} of revenue foregone in total, with the largest single concession at ${largestFmt}. The table below is sorted by amount; clicking a row shows the full line-item breakdown so you can see how the insurance scope reconciles to the contract price.`;
 }
