@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { VeraAvatar } from '@vera/ui';
-import { getData } from '@/lib/data';
+import { getDataForCurrentSession } from '@/lib/data';
 import { auth } from '@/lib/auth';
 import { ChatPanel } from './_components/ChatPanel';
 import { MobileNav } from './_components/MobileNav';
@@ -16,7 +16,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { asOf } = getData();
+  const { asOf } = await getDataForCurrentSession();
   const session = await auth();
   const firstName = session?.user?.name?.split(' ')[0] ?? null;
   const asOfDate = new Date(asOf).toLocaleDateString('en-US', {
