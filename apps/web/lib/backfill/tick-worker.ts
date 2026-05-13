@@ -33,7 +33,22 @@ import { sanitizeBackfillError } from './error-display';
  */
 
 const CLAIM_TTL_MS = 90_000; // > 60s function cap
-const MAX_CONSECUTIVE_ERRORS = 2;
+/**
+ * How many consecutive failed ticks to tolerate before marking a run failed.
+ *
+ * Each failed tick costs ~30-40s (Rooflink fetch timeout + 5s retry delay
+ * before the next tick fires). At MAX_CONSECUTIVE_ERRORS = 5 we tolerate
+ * roughly 2.5-3 minutes of upstream/network unreachability before giving
+ * up — long enough to ride out a wifi handoff, a cell-tower switch, or a
+ * short Rooflink WAF window, while still failing eventually if the issue
+ * is sustained.
+ *
+ * Original value was 2 (matched the backfill.py Python script's
+ * MAX_CONSECUTIVE_FAILURES). Bumped to 5 after observing repeated failures
+ * on flaky/travelling networks: a single ~50s network blip was enough to
+ * fail an otherwise-healthy 4-hour run, forcing manual resume.
+ */
+const MAX_CONSECUTIVE_ERRORS = 5;
 
 export interface TickResult {
   status:
