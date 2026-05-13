@@ -38,4 +38,30 @@ test.describe('Write-offs report', () => {
     await expect(sheet.getByRole('heading', { name: /Reconciliation/i })).toBeVisible();
     await expect(sheet.getByText(/Amount Withheld/i).first()).toBeVisible();
   });
+
+  test('Status filter partitions the dataset into Active AR and Paid off', async ({
+    page,
+  }) => {
+    const readRowCount = async (url: string): Promise<number> => {
+      await page.goto(url);
+      await page.waitForLoadState('networkidle');
+      const subtitle = await page
+        .getByText(/By job — \d+ rows?/)
+        .first()
+        .textContent();
+      const match = subtitle?.match(/(\d+)\s+rows?/);
+      return Number(match?.[1] ?? '0');
+    };
+
+    const all = await readRowCount('/dashboard/write-offs');
+    const active = await readRowCount('/dashboard/write-offs?status=active');
+    const paid = await readRowCount('/dashboard/write-offs?status=paid');
+
+    expect(all).toBeGreaterThan(0);
+    expect(active).toBeGreaterThan(0);
+    expect(paid).toBeGreaterThan(0);
+    expect(active).toBeLessThan(all);
+    expect(paid).toBeLessThan(all);
+    expect(active + paid).toBe(all);
+  });
 });
