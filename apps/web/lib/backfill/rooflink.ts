@@ -88,8 +88,14 @@ async function fetchJobsBatch(
   if (cursor) {
     url = cursor;
   } else {
+    // ordering=date_created (ASC, oldest first) is ~2× faster than
+    // -date_last_edited on Rooflink — date_created is indexed; date_last_edited
+    // forces a full sort. Direct curl measurements: 10.9s avg vs 19.1s avg per
+    // page_size=100 page. ASC walk also captures inserts during a long run
+    // (new records land at the END of the cursor, not before it).
+    // See docs/ROOFLINK_BACKFILL_PERFORMANCE.md for the measurements.
     const params = new URLSearchParams({
-      ordering: '-date_last_edited',
+      ordering: 'date_created',
       page_size: '100',
     });
     if (since) {
@@ -242,28 +248,30 @@ async function loadEstimatesWithTimestamps(): Promise<CachedEstimate[]> {
     orderBy: { id: 'desc' },
   });
   if (latest) {
-    const rows = await db.rawRooflinkJob.findMany({
-      where: { dataVersion: latest.id },
-      select: { payload: true },
-    });
+    // Server-side extraction via Postgres JSON operators. Pulls just the two
+    // fields we need (estimate id, date_last_edited) and filters out rows
+    // with no primary_estimate — all before any data leaves the database.
+    //
+    // The previous implementation called `findMany({ select: { payload } })`
+    // which pulled all ~104k full job payloads (~5 GB) across the network on
+    // every invocation, then discarded ~99% of the data in JS. This burned
+    // Neon's data-transfer quota in hours. See
+    // docs/UNDERSTANDING_THE_BACKFILL.md for the full breakdown.
+    const rows = await db.$queryRaw<
+      Array<{ id: string; date_last_edited: string | null }>
+    >`
+      SELECT
+        payload->'primary_estimate'->>'id'   AS id,
+        payload->>'date_last_edited'         AS date_last_edited
+      FROM "RawRooflinkJob"
+      WHERE "dataVersion" = ${latest.id}
+        AND payload->'primary_estimate'->>'id' IS NOT NULL
+    `;
     if (rows.length > 0) {
-      const out: CachedEstimate[] = [];
-      for (const row of rows) {
-        // The JOB's `date_last_edited` is what we filter on for incremental
-        // — the `primary_estimate` object itself doesn't carry that field.
-        const p = row.payload as {
-          date_last_edited?: string | null;
-          primary_estimate?: { id: number | string } | null;
-        } | null;
-        const eid = p?.primary_estimate?.id;
-        if (eid != null) {
-          out.push({
-            id: String(eid),
-            dateLastEdited: p?.date_last_edited ?? null,
-          });
-        }
-      }
-      if (out.length > 0) return out;
+      return rows.map((r) => ({
+        id: r.id,
+        dateLastEdited: r.date_last_edited,
+      }));
     }
   }
 
