@@ -7,7 +7,7 @@ import {
 } from '@vera/types';
 import { isInARWorkingSet, repRollups, toARJob } from '@vera/domain';
 import generatedJson from '@/data/generated.json';
-import { getLiveJobs } from './backfill/merge-view';
+import { getLiveJobs, promotedVersionIds } from './backfill/merge-view';
 import { auth } from './auth';
 
 /**
@@ -74,15 +74,19 @@ function computeAddressCounts(parsedJobs: RoofLinkJob[]): Map<string, number> {
  * naturally invalidates the slot.
  */
 async function getDataFromDb(tenantId: number): Promise<GeneratedData> {
-  const rawRows = await getLiveJobs(tenantId);
-  const versionKey = rawRows
-    .map((r) => r.dataVersion)
-    .sort((a, b) => a - b)
-    .join(',');
+  // CHEAP cache-key probe first: pull just the promoted-run-id list (a
+  // small `SELECT id FROM BackfillRun WHERE promoted=true` — milliseconds)
+  // and compare against the cached version before any heavy fetch. This
+  // keeps cache hits at ~10ms instead of paying the multi-second cost of
+  // pulling 100k+ raw payloads on every request.
+  const promotedIds = await promotedVersionIds(tenantId, 'rooflink_jobs');
+  const versionKey = promotedIds.join(',');
 
   const cached = dbCache.get(tenantId);
   if (cached && cached.versionKey === versionKey) return cached.data;
 
+  // Cache miss — do the heavy work.
+  const rawRows = await getLiveJobs(tenantId);
   const now = new Date();
 
   // Parse every payload — anything that fails the schema is dropped (the

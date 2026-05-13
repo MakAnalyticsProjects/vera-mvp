@@ -8,7 +8,11 @@ import {
 } from '@vera/types';
 import { isInARWorkingSet, toWriteOffRecord } from '@vera/domain';
 import writeOffsJson from '@/data/write-offs.json';
-import { getLiveJobs, getLiveLineItems } from './backfill/merge-view';
+import {
+  getLiveJobs,
+  getLiveLineItems,
+  promotedVersionIds,
+} from './backfill/merge-view';
 import { auth } from './auth';
 
 /**
@@ -53,23 +57,22 @@ interface DbCacheSlot {
 const dbCache = new Map<number, DbCacheSlot>();
 
 async function getWriteOffsFromDb(tenantId: number): Promise<WriteOffsFile> {
+  // CHEAP cache-key probe first: pull just the promoted-run-id lists for
+  // both sources before any heavy fetch. Keeps cache hits at ~10ms.
+  const [jobIds, lineItemsIds] = await Promise.all([
+    promotedVersionIds(tenantId, 'rooflink_jobs'),
+    promotedVersionIds(tenantId, 'rooflink_lineitems'),
+  ]);
+  const versionKey = `${jobIds.join(',')}|${lineItemsIds.join(',')}`;
+
+  const cached = dbCache.get(tenantId);
+  if (cached && cached.versionKey === versionKey) return cached.data;
+
+  // Cache miss — do the heavy work.
   const [jobRows, lineItemsRows] = await Promise.all([
     getLiveJobs(tenantId),
     getLiveLineItems(tenantId),
   ]);
-
-  const jobsVersionKey = jobRows
-    .map((r) => r.dataVersion)
-    .sort((a, b) => a - b)
-    .join(',');
-  const lineItemsVersionKey = lineItemsRows
-    .map((r) => r.dataVersion)
-    .sort((a, b) => a - b)
-    .join(',');
-  const versionKey = `${jobsVersionKey}|${lineItemsVersionKey}`;
-
-  const cached = dbCache.get(tenantId);
-  if (cached && cached.versionKey === versionKey) return cached.data;
 
   // Build a payload lookup keyed by estimateId. Line-item rows store their
   // natural key separately from the payload, so we don't have to dig into

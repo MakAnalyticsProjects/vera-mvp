@@ -80,7 +80,7 @@ export async function getLiveLineItems(tenantId: number): Promise<RawLineItemsRo
  * with promoted=true, this returns [10, 11, 12, 13]. The DISTINCT ON in
  * getLive* picks the latest version per record.
  */
-async function promotedVersionIds(
+export async function promotedVersionIds(
   tenantId: number,
   source: BackfillSource,
 ): Promise<number[]> {
