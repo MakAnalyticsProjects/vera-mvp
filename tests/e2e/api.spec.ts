@@ -1,4 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { signInAs } from './_helpers/auth';
+
+/**
+ * Contract tests for the five metrics API endpoints. All routes now wrap in
+ * `withAuth`, so requests need an authenticated cookie context — same
+ * pattern as `backfill-api.spec.ts`.
+ */
 
 const ENDPOINTS = [
   '/api/jobs/aging',
@@ -10,8 +17,10 @@ const ENDPOINTS = [
 
 test.describe('API endpoints', () => {
   for (const path of ENDPOINTS) {
-    test(`${path} returns valid AR data`, async ({ request }) => {
-      const res = await request.get(path);
+    test(`${path} returns valid AR data`, async ({ browser }) => {
+      const context = await browser.newContext();
+      await signInAs(context);
+      const res = await context.request.get(path);
       expect(res.ok()).toBeTruthy();
       const body = await res.json();
       expect(body).toBeTruthy();
@@ -19,8 +28,10 @@ test.describe('API endpoints', () => {
     });
   }
 
-  test('/api/jobs/aging exposes bucket summary', async ({ request }) => {
-    const res = await request.get('/api/jobs/aging');
+  test('/api/jobs/aging exposes bucket summary', async ({ browser }) => {
+    const context = await browser.newContext();
+    await signInAs(context);
+    const res = await context.request.get('/api/jobs/aging');
     const body = await res.json();
     expect(body.bucketSummary).toHaveProperty('within-terms');
     expect(body.bucketSummary).toHaveProperty('60-plus-past');
@@ -28,8 +39,10 @@ test.describe('API endpoints', () => {
     expect(body.totalCount).toBeGreaterThan(0);
   });
 
-  test('/api/reps/outstanding sorts by dollars by default', async ({ request }) => {
-    const res = await request.get('/api/reps/outstanding');
+  test('/api/reps/outstanding sorts by dollars by default', async ({ browser }) => {
+    const context = await browser.newContext();
+    await signInAs(context);
+    const res = await context.request.get('/api/reps/outstanding');
     const body = await res.json();
     expect(Array.isArray(body.reps)).toBeTruthy();
     if (body.reps.length >= 2) {
@@ -37,12 +50,19 @@ test.describe('API endpoints', () => {
     }
   });
 
-  test('/api/jobs/follow-ups separates queue from follow-ups', async ({ request }) => {
-    const res = await request.get('/api/jobs/follow-ups');
+  test('/api/jobs/follow-ups separates queue from follow-ups', async ({ browser }) => {
+    const context = await browser.newContext();
+    await signInAs(context);
+    const res = await context.request.get('/api/jobs/follow-ups');
     const body = await res.json();
     expect(Array.isArray(body.followUps)).toBeTruthy();
     expect(Array.isArray(body.executiveQueue)).toBeTruthy();
     for (const j of body.executiveQueue) expect(j.heatBand).toBe('critical');
     for (const j of body.followUps) expect(j.heatBand).toBe('hot');
+  });
+
+  test('/api/jobs/aging returns 401 without a session', async ({ request }) => {
+    const res = await request.get('/api/jobs/aging');
+    expect(res.status()).toBe(401);
   });
 });
