@@ -25,3 +25,6 @@ coverage
 # trying to ship a worktree's copy of data/jobs_dedup.jsonl (would blow
 # past Vercel's 100 MB upload limit).
 .claude
+# Git worktrees carry their own copies of the gitignored 196 MB JSONL.
+# Same failure mode as .claude above — exclude from upload.
+worktrees
