@@ -14,6 +14,8 @@ import { recordAudit } from '@/lib/audit';
 import { invalidateDataSnapshot } from '@/lib/data';
 import { invalidateWriteOffsSnapshot } from '@/lib/write-offs-data';
 import { sanitizeBackfillError } from './error-display';
+import { buildSyncSummaryData } from '@/lib/sync-summary-data';
+import { renderSyncSummaryPDF } from '@/lib/sync-summary-pdf';
 
 /**
  * Core tick logic. Pure-ish wrapper that:
@@ -532,20 +534,50 @@ async function notifySuccess(run: {
     ? `Vera checked Rooflink for changes since the last successful sync and found nothing new for <strong>${escapeHtml(sourceFriendly)}</strong>. No action needed.`
     : `Vera just finished a sync of <strong>${escapeHtml(sourceFriendly)}</strong>. Here's what was pulled in:`;
 
+  // Empty incremental syncs skip the PDF — there are no records to list.
+  // A PDF generation failure is non-fatal; we still send the email so the
+  // operator at least knows the run finished.
+  let pdfAttachment: { filename: string; content: Buffer } | null = null;
+  if (!isEmpty) {
+    try {
+      const data = await buildSyncSummaryData(run.id);
+      if (data && (data.jobRows.length > 0 || data.lineItemsRows.length > 0)) {
+        const buffer = await renderSyncSummaryPDF(data);
+        const dateStamp = (run.finishedAt ?? new Date()).toISOString().slice(0, 10);
+        pdfAttachment = {
+          filename: `vera-${run.source}-sync-${dateStamp}-run-${run.id}.pdf`,
+          content: buffer,
+        };
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[backfill] sync PDF generation failed for run #${run.id}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  const summaryRows: Array<[string, string]> = [
+    ['Source', sourceFriendly],
+    ['Mode', modeFriendly],
+    ['Records updated', run.itemsProcessed.toLocaleString()],
+    ['Duration', durationStr],
+    ['Run reference', `#${run.id}`],
+  ];
+  if (pdfAttachment) {
+    summaryRows.push(['Attached report', `${pdfAttachment.filename}`]);
+  }
+
   const html = renderEmailLayout({
     preheader: isEmpty
       ? `No new ${sourceFriendly.toLowerCase()} since last sync`
       : `${run.itemsProcessed.toLocaleString()} ${sourceFriendly.toLowerCase()} updated`,
     eyebrow: 'Vera · data sync complete',
     headline,
-    introHtml: intro,
-    bodyHtml: renderSummaryTable([
-      ['Source', sourceFriendly],
-      ['Mode', modeFriendly],
-      ['Records updated', run.itemsProcessed.toLocaleString()],
-      ['Duration', durationStr],
-      ['Run reference', `#${run.id}`],
-    ]),
+    introHtml: pdfAttachment
+      ? `${intro} A PDF summary of the touched records is attached to this email.`
+      : intro,
+    bodyHtml: renderSummaryTable(summaryRows),
     cta: {
       href: `${process.env.NEXTAUTH_URL ?? 'http://localhost:3000'}/dashboard/scheduler`,
       label: 'Open scheduler',
@@ -555,15 +587,22 @@ async function notifySuccess(run: {
   if (!isEmailConfigured()) {
     // eslint-disable-next-line no-console
     console.warn(
-      `[backfill] email not configured (no RESEND_API_KEY) — would have sent "${subject}" to ${recipients.join(', ')}`,
+      `[backfill] email not configured (no RESEND_API_KEY) — would have sent "${subject}" to ${recipients.join(', ')}${pdfAttachment ? ` with ${pdfAttachment.filename} (${pdfAttachment.content.byteLength} bytes)` : ''}`,
     );
     return;
   }
   for (const to of recipients) {
-    const result = await sendEmail({ to, subject, html });
+    const result = await sendEmail({
+      to,
+      subject,
+      html,
+      attachments: pdfAttachment ? [pdfAttachment] : undefined,
+    });
     if (result.ok) {
       // eslint-disable-next-line no-console
-      console.warn(`[backfill] success email sent to ${to} (resend id: ${result.id})`);
+      console.warn(
+        `[backfill] success email sent to ${to} (resend id: ${result.id}${pdfAttachment ? `, pdf ${pdfAttachment.content.byteLength}b` : ''})`,
+      );
     } else {
       // eslint-disable-next-line no-console
       console.warn(
