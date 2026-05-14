@@ -1,161 +1,168 @@
-# Vera — Release notes
+# Release notes
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: May 11, 2026.
+> Last updated: 2026-05-14
 
 ---
 
 ## Currently in production
 
-- **URL:** https://vera-mvp.vercel.app
-- **Last verified deploy:** see Vercel dashboard for the active production deployment.
+- **URL:** <https://vera-mvp.vercel.app>
+- **Database:** GCP Cloud SQL `vera_prod` at `34.56.121.151:5432`
+- **Read path:** DB (`USE_DB_DATA_SOURCE=1`)
 - **Branch deployed:** `main`
-- **Smoke checks passing:** see [`OPERATIONS.md`](./OPERATIONS.md#deploy-to-production)
+- **Latest deployment hash:** check `vercel ls --prod | head -2`
 
 ---
 
 ## Deploy cadence
 
-There is no formal release cycle. We deploy on demand:
+No formal release cycle. We deploy on demand from the canonical repo:
 
-- **Auto-deploy on push to `main`** (Vercel Git integration)
-- **Manual deploy:** `vercel --prod --yes` from the repo root
-- **Rollback:** `vercel rollback <previous-deployment-url>`
+```bash
+cd /Users/aditya-levich/Build/israil_mvp
+vercel --prod --yes
+```
 
-Most pushes to `main` are small, focused commits — a typical day has
-several deploys.
-
----
-
-## Currently unmerged branches
-
-These exist on `origin` but are not yet on `main`. None affect production
-runtime today:
-
-| Branch | What it is | Why it's not merged yet |
-|---|---|---|
-| `chore/wire-eslint` | ESLint flat config + cleanup of 3 unused imports + dead `eslint-disable` directives | Holding until cron behavior stabilizes — see TROUBLESHOOTING_HISTORY |
-| `fix/scheduler-disabled-state-and-banner` | Scheduler page: paused-row inputs disable + tooltip; cron-delay banner | Same reason — staged for next merge window |
+Auto-deploy is broken until the `hexabytecode` ↔ `adityauphade-mac`
+identity mismatch on Vercel is fixed (see entry #1 in
+[`TROUBLESHOOTING_HISTORY.md`](TROUBLESHOOTING_HISTORY.md)). Until then,
+manual deploy after every merge to `main`.
 
 ---
 
 ## Release log
 
-Reverse-chronological. Each entry has the merge SHA on `main`, the date,
-and a short summary of user-visible behavior change.
+Reverse-chronological. Each entry describes the user-visible behavior change.
 
-### PR #13 · 2026-05-11 — Scheduler natural-key + QStash migration
+### 2026-05-14 — Database cutover day
 
-Two compounding bugs fixed in one PR.
+A long day. Multiple shipments and one rolled-back attempt.
 
-**Scheduler was duplicating rows.** Every save on the scheduler page
-POSTed a new `Schedule` row. Eleven daily rows had accumulated for
-tenant 1 by May 10, and a single dispatch tick was firing 8 emails at
-once. Fix: enforced `(tenantId, cadence)` as a DB-level natural key
-(unique index), rewrote the API as `PUT/DELETE /api/schedules/[cadence]`
-(upsert/delete on the natural key), and rebuilt the scheduler UI around
-three explicit states (Unscheduled / Scheduled / Paused) with one
-primary action each. Pausing now fires an immediate optimistic PUT to
-the server — no more "I toggled off but it still says scheduled"
-dead-end. Form stays editable when paused. Save is dirty-aware. Remove
-is a quieter ghost button. Paused cards dim to 60% opacity for
-at-a-glance scanning.
+**`1995d41` — Post-sync PDF email on backfill completion.** The backfill
+sync-complete email now carries a one-page PDF listing the touched
+records, so operators see *which* records flowed through, not just the
+count. The render is done in-process with `@react-pdf/renderer`; the PDF
+is attached via Resend. Capped at 200 records per run; if a run touched
+more, the PDF lists the top 200 by balance (jobs) or work-RCV (line
+items). Full pipeline doc in [`SYNC_EMAIL.md`](SYNC_EMAIL.md).
 
-**Cron was unreliable.** GitHub Actions cron was delivering ~5% of the
-96 ticks/day we asked for, with multi-hour gaps. Migrated to Upstash
-QStash, which fires within seconds of any cron tick. Added
-`apps/web/lib/cron-auth.ts` that verifies QStash JWT signatures via
-`@upstash/qstash` against `QSTASH_CURRENT_SIGNING_KEY` /
-`QSTASH_NEXT_SIGNING_KEY`. A legacy `Authorization: Bearer $CRON_SECRET`
-fallback is retained for manual `curl` triggering. Two QStash schedules
-now drive the cron: `dispatch-briefs` at `*/5 * * * *` (every 5 min),
-`generate-briefings` at `0 12 * * 1-5` (12:00 UTC Mon–Fri).
+**`083f6a8` — Push DB read path filtering into Postgres.** The earlier
+DB cutover attempt failed because each cold dashboard request pulled the
+full 120,300-row JSONB population (~200 MB) into Node before filtering
+to the ~130 AR-eligible jobs. Across the public internet to Vercel, that
+times out. The fix uses two SQL helpers — `getLiveARJobsWithContext` and
+`getLiveJobsForWriteOffs` — that push the working-set filter and the
+duplicate-address aggregation into Postgres via CTEs. Per-cold-request
+transfer dropped to ~650 KB, a 320× reduction. Cold-start time dropped
+from "function timed out" to ~1.5 s server + sub-second wire. Domain
+transforms (heat score, anomalies, reconciliation) stay in TypeScript —
+no SQL duplication. Full design rationale in [`DATA_MODEL.md`](DATA_MODEL.md).
 
-**Cleanup.** The two `.github/workflows/cron-*.yml` files are deleted —
-replaced entirely by QStash schedules. The "Automatic dispatch may be
-delayed" warning banner is removed from the scheduler page; the cron
-is now reliable enough that the disclaimer is misleading. All docs
-referencing GitHub Actions cron updated to QStash.
+**`083f6a8` (continued) — Playwright safety guard.** Tests' global-setup
+file wipes 8 data tables before every run. Today that nuked ~120k
+Rooflink job payloads in `vera_dev` because the runner was pointed at
+the dev DB. Added a probe: if any `BackfillRun` has `promoted=true`,
+Playwright refuses to start and points the operator at a dedicated test
+DB. Override via `PLAYWRIGHT_ALLOW_PROD_DATA_WIPE=1` for the rare case
+of intentionally wiping a dev DB. The data was recovered from `vera_prod`
+within a few minutes; the guard is forever.
 
-User-visible change: emails arrive within ~5 minutes of their scheduled
-time, every time. Editing a scheduled cadence's recipient now replaces
-the row in place — no more duplicate sends.
+**`e88d6e3` — DB read path live (`USE_DB_DATA_SOURCE=1`).** Dashboards
+now read from `vera_prod` at request time, not the build-time JSON
+snapshot. Every promoted backfill makes new data visible automatically.
+Also shipped in this merge:
+- Skeleton loaders for every server-component route.
+- Run-now bug fix — derives watermark from `BackfillRun.startedAt`
+  rather than only `BackfillSchedule.lastSyncedAt`, so Run-now picks
+  incremental mode even when no schedule row exists.
+- Write-offs DB-path scope alignment (the JSON file was broadened on
+  May 13; the DB path now matches: no AR-only filter, 2024+ install
+  cutoff, scope = `all-estimates`).
+- `vera_prod` provisioned on GCP Cloud SQL with a scoped `vera_app`
+  role; Neon abandoned (quota exhausted).
+- `docs/GCP_MIGRATION.md` runbook documenting the migration.
 
-### `614e7312` · 2026-05-08 09:28 UTC — `fix(cron): stagger dispatch trigger off the round-minute boundary`
+### 2026-05-13 — Write-offs broadened
 
-Cron expression for `cron-dispatch-briefs.yml` changed from `*/15 * * * *`
-to `7,22,37,52 * * * *`. Same cadence; off-peak minutes sidestep
-GitHub's "round-minute traffic jam" issue. **No runtime change** for the
-app — only how often GitHub Actions fires the dispatcher.
+**`49551d5` (PR #19) — Write-offs scope expanded.** The write-offs
+dashboard now surfaces all estimates with an Amount Withheld discount on
+or after a 2024 install date, not only those in the AR working set.
+Result: 25 records ($139K) → 373 records ($2.26M). A Status filter
+(Active AR / Paid off) was added so operators can drill into one or the
+other.
 
-### `1b8068e` · 2026-05-08 ~08:55 UTC — `docs: infrastructure runbook + operations guide`
+**`071b655` — `.vercelignore` excludes `worktrees/`.** A 196 MB
+`jobs_dedup.jsonl` inside a worktree was being uploaded with deploys,
+hitting Vercel's 100 MB single-file limit. Fixed by excluding the
+worktree path.
 
-Added `docs/INFRASTRUCTURE.md` and `docs/OPERATIONS.md`. **No runtime
-change.** The merge itself was a "fresh commit to main" intended to
-trigger GitHub's scheduler-resync per their staff-suggested workaround.
+### 2026-05-12 — Backfill scheduling system
 
-### `f9ad29e` · 2026-05-08 08:24 UTC — PR #6: `fix(cron): in-process sendBrief call`
+**`811d82e` — QStash-based backfill ticks + atomic promote.** The
+backfill pipeline: a `BackfillSchedule` row drives a recurring run; each
+run is a chain of QStash ticks that fetches one Rooflink page per tick;
+on completion the run flips `promoted=true` and invalidates the
+dashboard cache. Run-now ad-hoc triggers use the same machinery with
+`scheduleId=null`. Cancellation is atomic and idempotent.
 
-Discovered by the first cron-dispatch run on prod: the dispatcher was
-calling `/api/brief/send` via HTTP at `process.env.VERCEL_URL`, which
-resolves to the hashed preview URL behind Vercel's Deployment
-Protection. Result: every send returned 401.
+**`df70f25` — Write-offs dashboard.** New page at `/dashboard/write-offs`
+listing every estimate with an `Amount Withheld` discount line item.
+Reads from `apps/web/data/write-offs.json` at this point (DB path comes
+on May 14).
 
-Fix: extracted a `sendBrief()` function from the route handler. The
-dispatcher and HTTP route now both call it directly — no HTTP roundtrip,
-no auth dance.
+**`569894a` — Customer column + install date.** Both columns added across
+Aging, Milestones, Follow-ups, Write-offs. Install date formatted
+US-style (MM/DD/YYYY) per UI convention.
 
-User-visible change: scheduled brief deliveries actually deliver on prod.
+### 2026-05-11 — Cron stabilization
 
-### `ad41af5` · 2026-05-08 ~08:23 UTC — PR #5: foundational ship
+**PR #13 — Scheduler natural-key + QStash migration.** Two compounding
+bugs fixed in one PR. Scheduler was duplicating rows (every save
+inserted a new `Schedule` row, accumulating 11 daily rows for tenant 1
+by May 10) — fixed by enforcing `(tenantId, cadence)` as a DB unique
+index, rewriting the API as `PUT/DELETE /api/schedules/[cadence]`, and
+rebuilding the UI around three explicit states (Unscheduled / Scheduled /
+Paused). Cron was unreliable on GitHub Actions (~5% delivery rate) —
+migrated to Upstash QStash, which fires within seconds.
 
-The big merge. Multi-tenant auth, Postgres, AI briefing, real
-scheduling, exit animations, mobile chip overflow fix, Playwright
-revival with JWT auth helper. ~10 commits squashed worth of work.
+### 2026-05-08 — Foundational ship
 
-User-visible: most of what's on prod today.
+**PR #5 — Foundational ship.** ~10 commits squashed: multi-tenant auth,
+Postgres on Neon (at the time), AI briefing, real scheduling, exit
+animations, mobile chip overflow fix, Playwright revival with JWT auth
+helper. Most of what's on prod today.
 
-### `53d5522` · 2026-05-07 (date pending verification) — PR #4: `fix(chat)`
+**PR #4 — `fix(chat)`.** Customer-name surface bug + tighter `listJobs`
+prompt.
 
-Customer-name surface bug + tighter listJobs prompt. Made via squash
-merge before today's session.
+### Earlier
 
-### Earlier history
-
-Pre-PR #4 history is in the git log. See `git log main` for full detail.
+See `git log` for everything prior to PR #4.
 
 ---
 
-## Open items
+## Currently on `main` but not deployed
 
-Not deployed today. Tracked in `IMPROVEMENTS.md` for the full backlog.
-
-- **GH Actions scheduler not auto-firing.** Investigation in
-  `TROUBLESHOOTING_HISTORY.md` entry #3. Two open paths: wait through
-  GitHub's onboarding throttle, or migrate the cron to Vercel Cron or
-  another scheduler.
-- **`fix/scheduler-disabled-state-and-banner`** — pushed branch, not
-  merged. Contains the scheduler paused-row UX + cron-delay banner.
-- **`chore/wire-eslint`** — pushed branch, not merged. Adds an ESLint
-  flat config and clears the small set of lint warnings the new config
-  surfaces.
-- **RoofLink data sync** — not built. `backfill.py` (in repo root) is
-  the reference implementation Israel shared.
+If a commit landed on `main` after the most recent successful production
+deploy, list it here. Today: nothing pending — `main` and prod are in
+sync as of 2026-05-14 16:53 IST.
 
 ---
 
 ## Versioning
 
 We don't ship versioned releases (no SemVer tags, no GitHub releases).
-The deployed `main` SHA *is* the version. Use `vercel inspect <url>` to
-see the exact SHA + timestamp for any deployment.
-
-If you need a stable reference for a demo or a customer touchpoint:
+The deployed `main` SHA *is* the version.
 
 ```bash
-# capture the current prod SHA
+# Current prod SHA
 vercel ls --prod | head -2
+
+# Compare against local main
 git rev-parse origin/main
-# write them down somewhere referenceable
 ```
+
+If you need a stable reference for a demo or a customer touchpoint,
+capture the SHA in your meeting notes.

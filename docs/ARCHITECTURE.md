@@ -1,19 +1,21 @@
 # Vera MVP — Architecture & Tech Stack
 
-> Last updated: May 11, 2026.
+> Last updated: 2026-05-14
 
 ## At a glance
 
 - **Monorepo** managed by **pnpm workspaces** + **Turborepo**.
 - **One Next.js 16 app** (`apps/web`) — UI + API routes deployed as Vercel Functions in the same project.
 - **Shared code** under `shared/` — types/schemas, UI components, pure domain logic, utilities.
-- **Postgres on Neon** (Vercel-managed integration). Multi-tenant schema (Tenant, User, Schedule, Briefing, SendLog), one tenant onboarded today (Priority Roofs Dallas).
+- **Postgres on GCP Cloud SQL** (`vera_prod` database, scoped `vera_app` role). 11-table schema covering app state (Tenant, User, Schedule, Briefing, SendLog, AuditLog, FailureNotificationSetting) and the backfill pipeline (BackfillSchedule, BackfillRun, RawRooflinkJob, RawRooflinkLineItems). One tenant onboarded today (Priority Roofs · Dallas).
+- **Live data via SQL pushdown.** Dashboards read from Postgres at request time via `apps/web/lib/backfill/merge-view.ts`. The SQL filters to the AR working set and computes the duplicate-address aggregation server-side, transferring ~650 KB per cold request (vs ~200 MB with the naïve "select all, filter in Node" approach we started with). Domain transforms (heat score, anomalies, reconciliation) run in TypeScript on the filtered set.
 - **Auth**: Auth.js v5 + Google OAuth, JWT session strategy, `/dashboard/*` gated by middleware.
-- **AI**: OpenAI gpt-4o for the morning briefing, gpt-4o-mini for chat.
-- **Email**: Resend, verified sender domain `makanalytics.org`.
-- **Cron**: two **Upstash QStash** schedules hit Vercel routes — recurring dispatcher (every 5 min) + daily AI briefing regenerator (Mon–Fri 12:00 UTC). Inbound requests are JWT-signed by QStash and verified via `lib/cron-auth.ts`.
-- **End-to-end tests** via Playwright — 96 specs, JWT-cookie helper for auth-gated specs, opt-in flags for live-network tests.
-- **Deployed** to Vercel (`vera-mvp.vercel.app`).
+- **AI**: Anthropic Claude Sonnet 4.6 — daily briefing + the Ask Vera chat panel.
+- **Email**: Resend, verified sender domain `makanalytics.org`. PDFs (daily AR brief + backfill sync-complete report) generated in-process with `@react-pdf/renderer`.
+- **Cron**: two engines. **GitHub Actions** runs the every-15-min sweep that polls `BackfillSchedule` and `Schedule` for due rows, plus the daily AI briefing generator. **Upstash QStash** drives per-tick backfill chains — each `/api/cron/backfill-tick` invocation fetches one Rooflink page and publishes the next tick. QStash requests are JWT-signed and verified via `lib/cron-auth.ts`.
+- **Backfill pipeline**: `BackfillRun` is append-only with a `dataVersion` tag. The merge view picks the latest payload per natural key across all `promoted=true` runs. Atomic promote = zero-downtime data swap.
+- **End-to-end tests** via Playwright — 112+ specs, JWT-cookie helper for auth-gated specs, hard guard that refuses to wipe a DB with promoted runs.
+- **Deployed** to Vercel (`vera-mvp.vercel.app`). Auto-deploy is broken pending identity reconciliation — manual `vercel --prod --yes` from the canonical repo until then.
 
 For the topology diagram, table-by-table walkthrough, and routes
 reference, see [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md). For
@@ -145,15 +147,14 @@ israil_mvp/
 |---|---|---|
 | Auth.js (`next-auth`) | 5.0.0-beta.31 | Google OAuth, JWT sessions |
 | Prisma | 6.19.x | ORM + migrations |
-| Neon Postgres | — | Database (Vercel Marketplace integration) |
+| GCP Cloud SQL Postgres 16 | — | Database (`vera_prod`, accessed via scoped `vera_app` role) |
 
 ### AI + email
 
 | Item | Where used |
 |---|---|
 | Vercel AI SDK (`ai` + `@ai-sdk/openai`) | `/api/chat` — streamed chat with tool use |
-| OpenAI `gpt-4o-mini` | Chat |
-| OpenAI `gpt-4o` | Daily AI briefing generator |
+| Anthropic Claude Sonnet 4.6 | Daily AI briefing + Ask Vera chat |
 | `openai` SDK | Briefing generator (direct, not via AI SDK) |
 | NWS API (free) | Storm-alert context for briefings |
 | NewsAPI | Roofing-industry headlines for briefings |
@@ -176,50 +177,69 @@ israil_mvp/
 | Item | Purpose |
 |---|---|
 | Vercel | Hosting + CI/CD; auto-deploys on push to `main` |
-| Upstash QStash | Cron triggers (dispatch every 5 min + daily AI briefing) |
+| GitHub Actions cron | 15-min sweep for due `Schedule` / `BackfillSchedule` rows; daily AI briefing trigger |
+| Upstash QStash | Per-tick backfill delivery (chains `backfill-tick` invocations) |
 
 ---
 
 ## Data flow
 
-### Build time
+### Backfill (Rooflink → DB)
 
 ```
-data/jobs_dedup.jsonl  ──[scripts/preprocess.ts]──►  data/generated.json
+Operator clicks "Run now" or cron fires
+   │
+   ▼
+POST /api/backfills/[source]/runs
+   │ creates BackfillRun row (status=running, promoted=false)
+   ▼
+QStash publishes first tick
+   │
+   ▼
+POST /api/cron/backfill-tick   ◄────────┐
+   │ fetches next page from Rooflink    │
+   │ INSERTs rows with dataVersion=run.id│
+   │ advances cursor                     │
+   │ publishes next tick ────────────────┘
+   ▼
+Last tick: promote()
+   │ status='completed', promoted=true
+   │ updates BackfillSchedule.lastSyncedAt
+   │ invalidateDataSnapshot + invalidateWriteOffsSnapshot
+   ▼
+notifySuccess: render PDF + send Resend email
 ```
 
-- Streams the raw JSONL line by line, filters to AR working set
-- Computes heat score, anomalies, aging, reconciliation flags via
-  `shared/domain/*`
-- Writes a slim JSON the API routes read at runtime (no raw 188 MB
-  JSONL ever loaded by a route)
-
-`pnpm preprocess` regenerates locally; Vercel runs it as part of the
-build.
-
-### Runtime — browser
-
-- `/dashboard` server-renders Today's briefing (queried from `Briefing`
-  table via Prisma); other dashboard pages fetch their `/api/jobs/*` or
-  `/api/reps/*` endpoint.
-- Filters/sort live in the URL via `nuqs`, re-call the endpoint.
-- Chat hits `/api/chat` via the Vercel AI SDK (streamed).
-- "Fetch latest news" calls `/api/briefings/regenerate`.
-- Scheduler page POSTs to `/api/schedules` and to `/api/brief/send`.
-
-### Runtime — server
+### Dashboard read (request time)
 
 ```
-/api/jobs/* + /api/reps/*  ──reads──►  data/generated.json (in-memory cache)
-/api/schedules + /api/cron/*  ──reads/writes──►  Postgres
-/api/briefings/regenerate  ──calls──►  OpenAI + NWS + NewsAPI  ──writes──►  Postgres
-/api/cron/dispatch-briefs  ──claims Schedule rows, calls──►  sendBrief() (in-process)
-                                                  └──►  Resend + writes SendLog
+Browser GET /dashboard/aging
+   ▼
+Next.js server component / API route
+   ▼
+withAuth → getData(tenantId)
+   ▼
+Cache key probe (SELECT id FROM BackfillRun WHERE promoted=true)
+   ├─ hit → return cached GeneratedData
+   └─ miss:
+      ├─ getLiveARJobsWithContext(tenantId)
+      │   └─ ONE SQL query against vera_prod:
+      │      DISTINCT ON (rooflinkId) latest payload per AR-eligible job
+      │      LEFT JOIN address-count CTE
+      │      → ~130 rows × ~5 KB = ~650 KB transferred
+      ├─ Zod parse + toARJob() per row
+      └─ cache + return
 ```
 
-Every route validates inputs with Zod. No route reads the raw 188 MB
-JSONL. Heat-score / aging / anomaly logic lives in `shared/domain` —
-same code at build time and at request time.
+Heat-score / aging / anomaly logic lives in `shared/domain` — the same
+code paths used by both the legacy `scripts/preprocess.ts` (built-time
+JSON generation, now dormant) and the live DB path. Same input → same
+output regardless of which side you ran it from.
+
+The legacy `data/jobs_dedup.jsonl` (188 MB) and `apps/web/data/*.json`
+snapshots remain in the repo as dormant fallbacks. They're read only when
+`USE_DB_DATA_SOURCE=0` (emergency rollback only); production is on the
+DB path.
 
 ---
 

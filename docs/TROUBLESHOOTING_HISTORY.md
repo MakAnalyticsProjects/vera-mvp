@@ -5,7 +5,7 @@ Postmortems for the gotchas we've actually hit. Each entry documents the
 shows up again, the next person can resolve it in minutes instead of
 hours.
 
-> Last updated: May 8, 2026.
+> Last updated: 2026-05-14
 
 ---
 
@@ -247,6 +247,132 @@ build"`), but typecheck and dev mode don't. After a fresh
 **Permanent option:** `pnpm approve-builds` and select Prisma packages
 to allow them to run install scripts. Then `pnpm install` runs
 `prisma generate` automatically.
+
+---
+
+## 8. Dashboard endpoints timed out on every cold request after DB cutover
+
+**Date:** 2026-05-14
+
+**Symptom:** After flipping `USE_DB_DATA_SOURCE=1` on production, every
+dashboard endpoint started returning HTTP 500 with wall times of 20–50
+seconds. Sign-in worked. The `/api/backfills` endpoint (which doesn't go
+through the dashboard data path) returned 401 normally — proving the
+function was reachable. Specifically `/api/jobs/aging`, `/api/jobs/write-offs`,
+`/api/jobs/follow-ups`, and `/api/reps/outstanding` all timed out.
+
+**First hypothesis (wrong):** Vercel functions couldn't reach the GCP
+Cloud SQL instance because of the authorized-networks allowlist.
+
+**Why that was wrong:** a small TCP-probe endpoint deployed at
+`/api/debug/db-probe` showed Vercel-to-GCP TCP completes in 32 ms and a
+trivial Prisma `SELECT current_user` round-trip completes in 451 ms from
+`iad1`. Network was fine.
+
+**Actual diagnosis:** Each cold dashboard request was running the merge-view
+query, which selected the full `payload` JSONB column for every row in the
+promoted snapshot — ~120,300 rows × ~1.7 KB ≈ 200 MB transferred to the
+Vercel function per cold start. On localhost that's instant (loopback,
+GB/s). Over the public internet to GCP, Vercel-to-GCP throughput is
+roughly 5–15 MB/s, which puts the transfer alone at 15–40 seconds plus
+the 11.5 s server-side query plan. Function timed out before the JSONB
+could finish streaming.
+
+**Verification:** ran the same merge-view query from a laptop using
+`COPY ... TO STDOUT | wc -c`. Confirmed: 205 MB transferred, 65–76 s
+total. Server-side `EXPLAIN ANALYZE` showed 11.5 s execution time
+dominated by disk I/O reading payload pages into shared buffers.
+
+**Fix:** Push filter + aggregation into Postgres. Two new helpers in
+[apps/web/lib/backfill/merge-view.ts](../apps/web/lib/backfill/merge-view.ts):
+
+- `getLiveARJobsWithContext(tenantId)` — applies the AR working-set
+  WHERE clause in SQL (mirrors `isInARWorkingSet` from
+  `shared/domain/classification.ts`) AND computes the duplicate-address
+  count via a CTE joined to each AR job. Returns ~130 rows with the
+  full payload plus an `addressCount` column. Total transfer: ~650 KB.
+- `getLiveJobsForWriteOffs(tenantId, installDateCutoff)` — analogous
+  for the write-offs path: filters to `primary_estimate.id IS NOT NULL
+  AND date_completed >= '2024-01-01'`. Returns ~2,200 rows instead of
+  120k.
+
+Domain transforms (`toARJob`, `toWriteOffRecord`, heat score, anomalies,
+reconciliation) continue to run in TypeScript on the much smaller
+filtered set. Zod parsing of the full payload is preserved, so schema-drift
+detection isn't lost.
+
+Result: cold-start wire transfer dropped from ~200 MB to ~650 KB (≈ 320×
+reduction). Cold-start time dropped from "timeout" to ~1.5 s end-to-end.
+
+**Detection going forward:** if you add a new dashboard endpoint that
+pulls from `RawRooflinkJob` / `RawRooflinkLineItems`, do not select
+`payload` whole on the full population. Either filter in SQL first (the
+right move) or measure the response size before deploying — `COPY (your
+query) TO STDOUT | wc -c` from a local psql against `vera_dev` gives
+you the bytes. Anything over a few MB per request is a smell.
+
+**Reference commits:**
+- `a7a3e4b perf(db-read): push AR filter + address counting into Postgres`
+- `083f6a8 Merge: push DB read path filtering into Postgres + safety guard`
+
+---
+
+## 9. Playwright wiped 120k rows of production-shape data from local DB
+
+**Date:** 2026-05-14
+
+**Symptom:** After running `pnpm exec playwright test` against the local
+dev server, the dashboards started returning 0 rows everywhere. Initial
+panic was that the merge-view changes had broken something. They hadn't —
+the DB was just empty.
+
+**Diagnosis:** `tests/e2e/_helpers/global-setup.ts` runs once per
+Playwright invocation and executes `DELETE FROM` against eight tables
+including `RawRooflinkJob` and `RawRooflinkLineItems`. The intent is to
+make spec assertions deterministic (specs that need data seed their own).
+The reality: `DATABASE_URL` in `apps/web/.env.development.local` pointed
+at `vera_dev`, which had been seeded earlier the same day with 120,300
+production-shape Rooflink job payloads (restored from GCP for testing).
+Playwright wiped them.
+
+**The data wasn't lost** — the production `vera_prod` DB was untouched
+(different host, no test run against it). Recovery took ~90 seconds via
+piped `COPY`:
+
+```bash
+for table in BackfillRun RawRooflinkJob RawRooflinkLineItems FailureNotificationSetting; do
+  psql "$GCP_URL" -c "COPY \"$table\" TO STDOUT" | \
+  psql -d vera_dev -c "COPY \"$table\" FROM STDIN"
+done
+```
+
+**Permanent fix:** added a hard guard at the top of `global-setup.ts`
+that probes for any `promoted=true` BackfillRun row before the DELETE
+block runs. Tests never create promoted runs, so a non-zero count means
+the target DB has real backfill output. The guard throws with a clear
+remediation message and aborts the suite without running any DELETE.
+Override via `PLAYWRIGHT_ALLOW_PROD_DATA_WIPE=1` for the rare legitimate
+case.
+
+The lesson, broader than the fix: **don't run a test suite against a DB
+that has irreplaceable data without verifying the test infrastructure's
+cleanup behavior first.** The cost of being asked "what does this script
+delete?" is 30 seconds; the cost of an unexpected wipe is at minimum
+the recovery time plus the trust hit.
+
+**Detection going forward:** the guard is now load-bearing. If you find
+yourself wanting to disable it, instead point Playwright at a dedicated
+test DB:
+
+```bash
+createdb vera_test
+DATABASE_URL=postgresql://<user>@localhost:5432/vera_test pnpm exec playwright test
+```
+
+The test DB has no promoted runs, so the guard passes; the wipes happen
+against a DB that's *meant* to be wiped.
+
+**Reference commit:** `b00242e test(safety): refuse to wipe DB with promoted BackfillRun rows`
 
 ---
 

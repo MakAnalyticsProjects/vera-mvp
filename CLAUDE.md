@@ -10,7 +10,9 @@ This file is the source of truth for how code is written in this repository. Eve
 
 **Architecture.** Monorepo (pnpm workspaces + Turborepo), one Next.js 16 app, all shared code in `shared/`, deployed to Vercel. Full architecture in `docs/ARCHITECTURE.md`.
 
-**You are read-only on the source data.** `data/jobs_dedup.jsonl` is never modified. Derived artifacts (`data/generated.json`) are gitignored — they regenerate on build.
+**You are read-only on Rooflink.** Rooflink is the system of record. Vera fetches via their REST API, writes raw payloads to our Postgres, and never writes back. The legacy `data/jobs_dedup.jsonl` export is also read-only and predates the live backfill pipeline (now dormant).
+
+**Production runs on the DB read path** (`USE_DB_DATA_SOURCE=1` on Vercel) against GCP Cloud SQL `vera_prod`. The bundled JSON snapshots in `apps/web/data/` are dormant fallback artifacts kept for emergency rollback only.
 
 ---
 
@@ -18,13 +20,13 @@ This file is the source of truth for how code is written in this repository. Eve
 
 1. **No `any` in TypeScript.** If a type is unclear, infer it from the data, define it in `shared/types`, or use `unknown` and narrow.
 2. **No business logic in components.** Components consume; `shared/domain/*` computes. Heat score, aging, anomaly detection — all in `shared/domain/`.
-3. **No fetching the raw 188 MB JSONL at runtime.** The browser only ever sees `generated.json`.
+3. **The dashboard never fetches the raw 188 MB JSONL or the full ~250 MB JSONB population at runtime.** SQL pushes filtering and aggregation into Postgres (see `apps/web/lib/backfill/merge-view.ts`); only the slim AR working set (~130 rows, ~650 KB) crosses the wire to the Vercel function. The legacy JSON snapshots in `apps/web/data/*.json` are dormant rollback artifacts, not part of the read path.
 4. **Outbound email only via the audited send pipeline.** All sends go through `apps/web/lib/email.ts` → Resend. Every send requires explicit user action and a confirmation step in the UI. Audit trail lives in the Resend dashboard until V2 introduces in-app history. Follow-up "drafts" remain copy-to-clipboard / `mailto:` until they're migrated to the same pipeline. Supersedes Q9 of the original spec — see `DISCUSSION.md` §6.7.
-5. **No autosend without explicit human intent.** Scheduled sends use Resend's `scheduled_at` field — they require a user to compose, preview, and confirm a specific email targeted at a specific time. No recurring cron-triggered sends in MVP. No DB writes (the reserved Neon slot remains reserved for V2). No destructive mutations of any kind.
+5. **No autosend without explicit human intent.** Scheduled sends use Resend's `scheduled_at` field — they require a user to compose, preview, and confirm a specific email targeted at a specific time. The cron dispatcher (`dispatch-briefs`) fires *user-configured* schedules at the user-specified time. No silent recurring sends without a human-authored configuration.
 6. **No new top-level packages without updating this file.** Tech stack is pinned (see below).
 7. **Every new route gets a Playwright spec before it merges.** No exceptions.
 8. **Every default behavior must be visible in the UI** (tooltip / footnote) so users can spot and challenge it. Per the SPEC.md philosophy.
-9. **The Neon DB is shared between local dev and production — there is no staging DB.** Migrations applied locally are instantly live in prod. Treat any script that `DELETE`s or `UPDATE`s more than a single row as production-data-loss-in-the-making, and get explicit user ACK before running it. Read-only queries don't need ACK.
+9. **Local dev DB ≠ production DB. Both can hold real data; never let one be the test target without an explicit guard.** Local runs against `postgres://localhost/vera_dev`; production runs against GCP Cloud SQL `vera_prod`. There is no staging DB. Any script that `DELETE`s or `UPDATE`s more than a single row on either DB is production-data-loss-in-the-making — get explicit user ACK before running. Read-only queries don't need ACK. **Playwright global-setup wipes 8 tables every run**; it has a hard guard refusing to run against any DB with a `promoted=true` `BackfillRun`. Don't disable that guard without thinking very hard about it. (Learned 2026-05-14 the hard way — see `docs/TROUBLESHOOTING_HISTORY.md`.)
 10. **Server (DB) is the source of truth for UI state.** Fetch from the DB on mount; `localStorage` is only a draft buffer for unsaved form input. Never trust the local cached value to match what the cron worker, another tab, or another user is seeing.
 11. **No native browser dialogs, no inline transient banners.** `window.alert()`, `window.confirm()`, and `window.prompt()` are forbidden — they look broken, can't be styled, and can't be tested without intercepting `page.on('dialog')`. Use `useConfirm()` from `@vera/ui` for confirmations and `toast()` from `@vera/ui` (sonner-backed) for success/error/loading feedback. Transient status (sent / saved / paused / cancel-confirmation / API error) goes through toasts, NOT inline `<div>` banners inside the page. Persistent state (a card's "last run failed" history line) stays on-page because it's informational, not transient. Long-running operations (backfill runs, multi-second jobs) use a persistent `toast.loading()` with a stable id and update-in-place — the toast IS the progress UI, no separate progress bar on the page. If you find yourself reaching for `setError` + a conditionally-rendered red div, that's a toast.
     - **Modal flavors** — two patterns, share the same visual chrome (centered, `bg-bg-card`, `rounded-[var(--radius-card)]`, `p-7`, `shadow-2xl`) AND the same display-serif title typography (`font-display text-2xl tracking-tight`). They differ only in what surrounds the title and in default behavior:
@@ -102,8 +104,8 @@ data/                      gitignored — source + generated artifacts
 ## Worktrees
 
 - **Name worktrees by function**, not by adjective. `worktrees/scheduler-natural-key`, `worktrees/qstash-migration` — yes. `claude/festive-burnell-293408` (the auto-generated `claude/<adjective>-<surname>-<digits>` form) — no. The name should describe what's in the worktree, the same way branch names do.
-- **Keep active worktrees minimal.** One per in-flight piece of work. Remove with `git worktree remove <path>` when the work merges. Don't let them accumulate — every worktree duplicates gitignored data (notably the 187 MB `data/jobs_dedup.jsonl`) and adds deploy footguns.
-- **Bootstrap a fresh worktree with `scripts/setup-worktree.sh <path>`.** It copies the gitignored-but-required files (`apps/web/.env.local`, `data/jobs_dedup.jsonl`, `data/generated.json`) from the canonical main repo, runs `pnpm install`, and runs `prisma generate`. Doing this by hand has cost us time twice — don't.
+- **Keep active worktrees minimal.** One per in-flight piece of work. Remove with `git worktree remove <path>` when the work merges. Don't let them accumulate — every worktree duplicates gitignored data (notably the 187 MB `data/jobs_dedup.jsonl` and the per-worktree `node_modules`) and adds deploy footguns.
+- **Bootstrap a fresh worktree with `scripts/setup-worktree.sh <path>`.** It copies the gitignored-but-required files (`apps/web/.env.local`, `data/jobs_dedup.jsonl`, `apps/web/data/generated.json`) from the canonical main repo, runs `pnpm install`, and runs `prisma generate`. Doing this by hand has cost us time twice — don't.
 - **Never deploy from a worktree.** Worktrees carry their own copies of gitignored data, and `vercel --prod` from one will upload the wrong tree (we hit Vercel's 100 MB single-file limit because of this). Deploy from `/Users/aditya-levich/Build/israil_mvp` only.
 
 ---
@@ -307,7 +309,7 @@ Chat audit entries capture the user's question text in `details.messages` (withi
 | `/api/chat` | POST | Streams Claude responses via Vercel AI SDK |
 | `/api/brief/send` | POST | Generates daily AR brief + PDF, sends via Resend (immediate or `scheduled_at`). Body: `{ to, sendAt? }` |
 
-Every route validates request input with Zod and returns Zod-validated JSON. No route reads `jobs_dedup.jsonl` directly — only the cached `generated.json`. All filtering/aggregation delegates to `shared/domain/*` so behavior matches the build-time preprocess.
+Every route validates request input with Zod and returns Zod-validated JSON. Dashboard routes read from Postgres at request time via `lib/data.ts` → `merge-view.ts` (SQL pushes the AR filter + duplicate-address aggregation into the DB). The `@vera/domain` transforms (`toARJob`, `toWriteOffRecord`, heat score, anomalies, reconciliation) run in Node on the filtered set. Same domain code paths the legacy `scripts/preprocess.ts` used, so JSON-path and DB-path produce equivalent results.
 
 ---
 
@@ -394,7 +396,7 @@ If you change a module, run its spec. If it fails, fix the spec or the code — 
 2. **Default to the simplest thing that satisfies the spec.** This is an MVP, not a platform.
 3. **Surface the assumption in the UI** rather than hiding it. Tooltip + question number from SPEC.md.
 4. **Ask before adding a new dependency.** The pinned stack is intentional.
-5. **Ask before touching `data/jobs_dedup.jsonl`.** It's read-only.
+5. **Ask before touching shared data sources.** `data/jobs_dedup.jsonl` is read-only and dormant. `vera_prod` (GCP) is production — never run destructive SQL without explicit user ACK. `vera_dev` (local) has been seeded with production-shape data — the Playwright guard now refuses to wipe it, but anything you write yourself should be equally cautious.
 
 ---
 

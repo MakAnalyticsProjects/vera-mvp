@@ -1,38 +1,69 @@
-# Vera — Testing
+# Testing
 
 What's tested, how to run it, and how to add new tests.
 
-> Last updated: May 8, 2026.
+> Last updated: 2026-05-14
 
 ---
 
 ## What we have
 
-**One test framework: Playwright** — end-to-end only, no unit tests in the
-MVP. The reasoning is in `CLAUDE.md`: pure domain functions are simple
-enough that E2E catches the meaningful regressions.
+**One test framework: Playwright** — end-to-end only, no unit tests in
+the MVP. The reasoning is in `CLAUDE.md`: pure domain functions are
+simple enough that E2E catches the meaningful regressions.
 
 | Counter | Number |
 |---|---|
-| Specs in default suite | **96 passing** as of May 8 |
-| Specs gated behind opt-in env vars | 1 (`cron-dispatch-race`, `RUN_RACE_TEST=1`) |
-| Specs in `testIgnore` (audit + ad-hoc) | ~5 |
+| Specs in default suite | **112+ passing** as of 2026-05-14 |
+| Specs gated behind opt-in env vars | `chat-live` (`RUN_LIVE_AI=1`), `cron-dispatch-race` (`RUN_RACE_TEST=1`) |
+| Specs in `testIgnore` (audit + ad-hoc) | ~5 (prefixed `_` or `prod-`) |
 
 ```mermaid
 flowchart LR
     Browser[Playwright Chromium]
     Spec[*.spec.ts]
     Helper[_helpers/auth.ts<br/>_helpers/global-setup.ts]
-    App[Next.js running on :3000]
-    DB[(Neon Postgres)]
+    App[Next.js dev server on :3000]
+    DB[(local Postgres<br/>vera_dev or vera_test)]
     Resend
 
     Spec --> Helper
-    Helper -->|sets cookie| Browser
+    Helper -->|JWT cookie| Browser
     Browser --> App
     App --> DB
     App -.->|mocked or real| Resend
 ```
+
+---
+
+## ⚠️ Safety guard: tests refuse to wipe production-shape data
+
+The global-setup file (`tests/e2e/_helpers/global-setup.ts`) DELETEs eight
+data tables before each suite invocation so spec assertions are
+deterministic. **It will refuse to run against a database that has a
+`promoted=true` BackfillRun row.** Tests never create promoted runs, so
+this is a reliable canary for "you're pointed at a DB with real data,
+back off."
+
+When the guard fires:
+
+```
+[playwright global-setup] target DB has 2 promoted BackfillRun row(s) —
+refusing to DELETE FROM Backfill*/Raw* tables. ...
+```
+
+**The fix is to point Playwright at a dedicated test DB, not your dev
+DB.** Don't disable the guard. The override
+(`PLAYWRIGHT_ALLOW_PROD_DATA_WIPE=1`) exists for rare legitimate cases
+but is essentially "burn this DB on purpose" — read the error message
+twice before setting it.
+
+This guard exists because on 2026-05-14, running Playwright against
+`vera_dev` (which had the production-shape Rooflink data restored for
+testing) wiped 120,300 rows. The data was recoverable from `vera_prod`
+within a few minutes; the guard is forever. See
+[`TROUBLESHOOTING_HISTORY.md`](TROUBLESHOOTING_HISTORY.md) for the full
+postmortem.
 
 ---
 
@@ -97,9 +128,19 @@ await signInAs(context, {
 
 ## How the DB stays deterministic
 
-`tests/e2e/_helpers/global-setup.ts` runs once per suite invocation and
-**wipes the `Briefing` table**. Specs that need a Briefing seed it
-themselves (or mock the regenerate API and `click Fetch latest news`).
+`tests/e2e/_helpers/global-setup.ts` runs once per suite invocation and:
+
+1. **Probes for `promoted=true` BackfillRun rows.** If any are found,
+   throws a hard error and aborts the suite (see ⚠️ above).
+2. **Wipes the following tables** so spec assertions are deterministic:
+   `AuditLog`, `Briefing`, `Schedule`, `RawRooflinkJob`,
+   `RawRooflinkLineItems`, `BackfillRun`, `BackfillSchedule`,
+   `FailureNotificationSetting`.
+
+Specs that need DB state seed it inside `test.beforeAll` or
+`test.beforeEach`. `dashboard-db-source.spec.ts` is the reference
+example — it inserts a synthetic BackfillRun + RawRooflinkJob row,
+runs the assertion, and cleans up in `afterAll`.
 
 If you add a spec that depends on other DB state, either:
 - mock the API at the route level via `page.route('**/api/...', …)`, or

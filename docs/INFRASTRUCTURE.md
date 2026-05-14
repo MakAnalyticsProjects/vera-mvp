@@ -1,266 +1,194 @@
-# Vera — Infrastructure
+# Infrastructure
 
-The high-level map of what's deployed, where it runs, and how the pieces talk
-to each other. If you're new to the project, start here.
+The high-level map of what's deployed, where it runs, and how the pieces
+talk to each other. If you're new to the project, start here.
 
-> Last updated: May 11, 2026.
+> Last updated: 2026-05-14
 
 ---
 
 ## At a glance
 
-Vera is a single Next.js app deployed on Vercel, backed by a Postgres database
-on Neon, with two Upstash QStash schedules acting as the cron scheduler. Email
-delivery goes through Resend. AI content (the morning briefing) comes from
-OpenAI. Sign-in is Google OAuth via Auth.js.
-
-There is one tenant today: **Priority Roofs · Dallas**.
-
 ```mermaid
 flowchart LR
-    User[GM in browser]
-    QS[Upstash QStash]
+    User[Operator in browser]
 
     subgraph Vercel ["Vercel — vera-mvp.vercel.app"]
-      Web[Next.js app
-      pages + API routes]
+      Web["Next.js 16 app<br/>pages + API + cron handlers"]
     end
 
-    subgraph Neon ["Neon Postgres"]
-      DB[(vera-bistre
-      database)]
+    subgraph GCP ["GCP Cloud SQL Postgres 16"]
+      DB[("vera_prod<br/>(11 tables)")]
     end
+
+    GHA["GitHub Actions cron<br/>(every 15 min sweep)"]
+    QS["Upstash QStash<br/>(backfill ticks)"]
+
+    Rooflink[(Rooflink REST API)]
+    Resend[(Resend<br/>transactional email)]
+    NewsAPI[(NewsAPI + NWS)]
+    Google[(Google OAuth)]
+    Anthropic[(Anthropic Claude)]
 
     User -->|Google sign-in| Web
-    Web -->|sessions, briefings,
-    schedules, send log| DB
+    Web --> Google
+    Web -->|all reads + writes| DB
 
-    QS -->|every 5 min,
-    signed POST| Web
-    QS -->|daily 12:00 UTC,
-    signed POST| Web
-
-    Web -->|gpt-4o| OpenAI[OpenAI]
-    Web -->|alerts| NWS[National Weather Service]
-    Web -->|headlines| News[NewsAPI]
-    Web -->|email + PDF| Resend[Resend]
-    Resend -->|delivers| Inbox[Recipient inbox]
+    GHA -->|signed POST<br/>/api/cron/dispatch-briefs| Web
+    Web -->|publish tick| QS
+    QS -->|signed POST<br/>/api/cron/backfill-tick| Web
+    Web -->|GET /jobs, /estimates| Rooflink
+    Web -->|generate briefing| Anthropic
+    Web -->|alerts + headlines| NewsAPI
+    Web -->|email + PDF| Resend
 ```
 
+**One tenant today:** Priority Roofs · Dallas (`tenantId = 1`).
+
 ---
 
-## What runs where
+## Component-by-component
 
-| Piece | Where | Why |
+### Web app (`vera-mvp` on Vercel)
+
+- **Framework:** Next.js 16, App Router, deployed as Vercel Functions.
+- **Region:** `iad1` (Virginia, US-East). Same continent as the DB.
+- **Root directory in the Vercel project:** `apps/web`. The monorepo uses pnpm workspaces; Vercel installs from the workspace root automatically because `packageManager: pnpm@10.x` is declared in the root `package.json`.
+- **Auto-deploy:** ⚠️ broken (the Vercel team is owned by `hexabytecode`; the repo by `adityauphade-mac`; they can't see each other's namespace). Push to `main` does not trigger a build. Use `vercel --prod --yes` from the canonical repo until the identity mismatch is resolved.
+
+### Database (`vera_prod` on GCP Cloud SQL)
+
+- **Host:** `34.56.121.151:5432` (shared GCP Cloud SQL instance).
+- **Postgres:** 16.13 on Debian.
+- **Other databases on the same instance** (out of our scope, must not touch): `bap_dev`, `priority_crm_test_db`, `authentication_service_db`, `quickbooks_data`, `airflow_dev`.
+- **Roles:**
+  - `vera_app` — scoped owner of `vera_prod` and its `public` schema. **All application traffic uses this role.** Cannot touch any other database on the instance.
+  - `postgres` — superuser-ish (CREATEDB + CREATEROLE). For admin/migrations only, from a laptop. Never set on Vercel.
+- **Connection:** SSL required (`sslmode=require`). Authorized networks is permissive (`0.0.0.0/0`) — see [`SECURITY.md`](SECURITY.md) for why that's acceptable given the auth layers.
+- **Schema:** 11 tables. Full ER diagram in [`DATA_MODEL.md`](DATA_MODEL.md).
+
+### Cron — two engines
+
+| Engine | What it drives | Cadence |
 |---|---|---|
-| Web app | Vercel (vera-mvp.vercel.app) | Next.js 16 App Router, Node runtime |
-| Database | Neon (Vercel-managed integration) | Postgres for sessions, briefings, schedules, send log |
-| Cron | Upstash QStash | Reliable sub-hour scheduling. Replaced GitHub Actions cron on May 11 — see release note. |
-| Email | Resend | Verified sender domain `makanalytics.org` |
-| AI | OpenAI gpt-4o (briefing) + gpt-4o-mini (chat) | The model writes the morning briefing and answers chat |
-| News context | NWS (free) + NewsAPI | Storm alerts and roofing-industry headlines weave into the briefing |
-| Auth | Auth.js v5 + Google OAuth | One Google account → one user in DB → bound to tenant |
+| **GitHub Actions** (`.github/workflows/cron-*.yml`) | The 15-min sweeper that polls `BackfillSchedule` and `Schedule` for due rows, plus the daily AI briefing generator | Every 15 min + daily 12:00 UTC |
+| **Upstash QStash** | Per-tick delivery for in-flight backfill runs (chains `/api/cron/backfill-tick` calls) | One message per tick, fired by the previous tick |
 
----
+GitHub Actions was chosen over Vercel Cron because Hobby Vercel caps cron at 2 jobs / 1× daily, which can't run a 15-min sweep.
 
-## Database tables
+### External services
 
-```mermaid
-erDiagram
-    Tenant ||--o{ User       : has
-    Tenant ||--o{ Schedule   : has
-    Tenant ||--o{ Briefing   : has
-    Tenant ||--o{ SendLog    : has
-    Schedule ||--o{ SendLog  : produces
-
-    Tenant {
-        int id PK
-        string name
-        string slug
-        string briefingTimezone
-    }
-    User {
-        int id PK
-        int tenantId FK
-        string email
-        string googleSub
-        string role
-    }
-    Schedule {
-        int id PK
-        int tenantId FK
-        string cadence "daily | weekly | monthly"
-        string timeLocal "HH:mm"
-        string timezone "IANA"
-        string recipient
-        boolean enabled
-        datetime nextRunAt
-        datetime lastRunAt
-    }
-    Briefing {
-        int id PK
-        int tenantId FK
-        string headline
-        string bodyMd
-        json keyJobs "topCritical + sources"
-        string model
-        datetime generatedAt
-    }
-    SendLog {
-        int id PK
-        int tenantId FK
-        int scheduleId FK
-        string toEmail
-        string status "sent | failed"
-        string resendId
-        int pdfBytes
-        datetime sentAt
-    }
-```
-
-- **Tenant** — currently one row, Priority Roofs Dallas. Schema is multi-tenant
-  ready but only this row exists today.
-- **User** — created on first Google sign-in; bound to tenantId=1 by default.
-- **Schedule** — when a recurring AR brief should fire. `nextRunAt` is what the
-  dispatcher checks.
-- **Briefing** — one row per AI-generated dashboard briefing. Most recent row
-  is what the dashboard renders.
-- **SendLog** — every time the dispatcher attempts a send (success or failure).
-  Audit trail.
-
----
-
-## Routes
-
-### Pages
-
-| Route | Public? | What it is |
+| Service | Used for | Auth |
 |---|---|---|
-| `/` | yes | Landing page. CTA reads "Sign in" if anon, "Open the dashboard" if signed in. |
-| `/login` | yes | Google sign-in screen. |
-| `/docs` | yes | "How I work" handbook. Static content. |
-| `/design` | yes | Design system gallery. Internal reference. |
-| `/dashboard` | gated | Today's briefing + metric tiles + top three. |
-| `/dashboard/aging` | gated | Aging buckets + anomaly side panel. |
-| `/dashboard/follow-ups` | gated | Hot jobs + executive review queue. |
-| `/dashboard/milestones` | gated | Per-job milestone gaps. |
-| `/dashboard/reconciliation` | gated | "Fell through cracks" sweep. |
-| `/dashboard/rep-leaderboard` | gated | Per-rep outstanding + metric switcher. |
-| `/dashboard/scheduler` | gated | Configure recurring AR brief delivery. |
-
-`gated` = redirected to `/login?callbackUrl=...` if no session.
-
-### APIs
-
-| Route | Auth | Used by |
-|---|---|---|
-| `/api/auth/[...nextauth]` | n/a | Auth.js handlers |
-| `/api/chat` | session | Chat panel, streams Claude responses |
-| `/api/jobs/*`, `/api/reps/outstanding` | open | Dashboard pages (data feeds) |
-| `/api/briefings/regenerate` | session | "Fetch latest news" button on dashboard |
-| `/api/briefings/preview` | open | Local DB-less smoke check |
-| `/api/schedules` | session | Scheduler page POST/GET |
-| `/api/brief/send` | open | "Send now" button on Scheduler |
-| `/api/cron/dispatch-briefs` | bearer | GH Actions every 15 min |
-| `/api/cron/generate-briefings` | bearer | GH Actions weekday 7am CT |
-
-> Bearer-gated routes check `Authorization: Bearer <CRON_SECRET>`. Anything
-> else returns 401.
+| **Rooflink REST API** | Backfill source — `GET /jobs`, `GET /estimates/{id}/line-items` | `RL_KEY` bearer token |
+| **Anthropic Claude** (Sonnet 4.6) | AI dashboard briefing + chat ("Ask Vera") | `ANTHROPIC_API_KEY` |
+| **Resend** | Outbound brief emails + backfill sync-complete emails (with PDF attachments) | `RESEND_API_KEY`; sender domain `makanalytics.org` |
+| **Google OAuth** | Sign-in (Auth.js v5, JWT strategy) | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` |
+| **NewsAPI + NWS** | Weather alerts + news headlines fed into the briefing prompt | `NEWSAPI_KEY` |
 
 ---
 
-## Environment variables
+## Production env-var checklist
 
-Set in **Vercel** (production) and mirrored in `apps/web/.env.local` for
-development. Never committed.
+These must be set in **Vercel → Project → Settings → Environment Variables → Production**:
 
-| Name | Where used | Notes |
-|---|---|---|
-| `AUTH_SECRET` / `NEXTAUTH_SECRET` | Auth.js JWT encryption | Must be ≥ 32 random chars |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth | From GCP project `vera-ar` |
-| `DATABASE_URL` (+ `POSTGRES_*`) | Prisma client | Neon-managed, set automatically by Vercel integration |
-| `OPENAI_API_KEY` | Briefing generator + chat | gpt-4o + gpt-4o-mini |
-| `NEWSAPI_KEY` | News context for briefing | Free tier OK |
-| `CRON_SECRET` | Legacy bearer fallback for cron routes | Still accepted by `verifyCronAuth` for manual `curl` triggering |
-| `QSTASH_CURRENT_SIGNING_KEY` | Verifies inbound QStash requests | From Upstash QStash console |
-| `QSTASH_NEXT_SIGNING_KEY` | Verifies inbound QStash requests during key rotation | Both keys must be set so QStash can rotate without an outage |
-| `RESEND_API_KEY` | Email sending | Israel's Resend account |
-| `EMAIL_FROM` | Resend sender | `Vera <vera@makanalytics.org>` (verified domain) |
-
----
-
-## Cron schedules
-
-Two Upstash QStash schedules, configured in the Upstash dashboard, hit the
-Vercel cron routes. Each request is signed by QStash with a JWT in the
-`upstash-signature` header; the routes verify it via `lib/cron-auth.ts`
-against `QSTASH_CURRENT_SIGNING_KEY` / `QSTASH_NEXT_SIGNING_KEY`.
-
-```mermaid
-flowchart LR
-    subgraph "Every 5 min"
-      A[QStash schedule
-      dispatch-briefs] -->|signed POST| B[/api/cron/dispatch-briefs/]
-      B --> C{Any Schedule rows
-      with nextRunAt ≤ now?}
-      C -->|yes| D[Claim row · advance nextRunAt
-      · sendBrief in-process · log to SendLog]
-      C -->|no| E[Return dispatched=0]
-    end
-
-    subgraph "Weekdays 7am CT"
-      F[QStash schedule
-      generate-briefings] -->|signed POST| G[/api/cron/generate-briefings/]
-      G --> H[For each tenant:
-      generate fresh AI briefing
-      · write Briefing row]
-    end
-```
-
-| Schedule | Cron expression | What it does |
-|---|---|---|
-| `dispatch-briefs` | `*/5 * * * *` | Polls for due `Schedule` rows and fires the email for each. QStash fires within seconds of the tick, so worst-case lateness is bounded by the 5-min interval. |
-| `generate-briefings` | `0 12 * * 1-5` | Regenerates the AI dashboard briefing for each tenant (≈7am Central). |
-
-QStash schedules are managed in the Upstash QStash console (or via the
-`/v2/schedules` REST API). See [docs/OPERATIONS.md](OPERATIONS.md) for the
-full operator runbook — including how to manually trigger the dispatcher
-for testing.
-
----
-
-## Deployment topology
-
-```mermaid
-flowchart TB
-    Dev[Local laptop] -->|git push origin main| Repo[adityauphade-mac/vera-mvp]
-    Repo -->|webhook| Vercel
-    Vercel -->|build + deploy| Prod[vera-mvp.vercel.app]
-    QStash[Upstash QStash
-    schedules] -->|signed POST
-    every 5 min + daily| Prod
-
-    Prod -.->|reads/writes| Neon
-```
-
-- Push to `main` → Vercel builds + deploys automatically.
-- For an explicit deploy from CLI: `vercel --prod` from the repo root.
-- The auth-split fix shipped earlier today keeps the middleware bundle under
-  Vercel's 1 MB Edge Function size limit. Don't import `@/lib/auth` from
-  middleware — use `@/lib/auth.config` instead.
-
----
-
-## Domains and URLs
-
-| Purpose | URL |
+| Variable | Notes |
 |---|---|
-| Public production | `https://vera-mvp.vercel.app` |
-| Per-deploy preview | `https://vera-<hash>-aditya-uphades-projects.vercel.app` |
-| Vercel project | `aditya-uphades-projects/vera-mvp` |
-| GitHub repo | `https://github.com/adityauphade-mac/vera-mvp` |
-| Default branch | `main` |
+| `DATABASE_URL` | `postgresql://vera_app:<pwd>@34.56.121.151:5432/vera_prod?sslmode=require` |
+| `DATABASE_URL_UNPOOLED` | Same value (Cloud SQL has no pooler). Kept for compat with any code that reads it. |
+| `USE_DB_DATA_SOURCE` | `1` — flip to `0` to roll back to the JSON snapshot path (emergency only). |
+| `AUTH_SECRET` / `NEXTAUTH_SECRET` | Same value; rotated together. |
+| `NEXTAUTH_URL` | `https://vera-mvp.vercel.app` |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Created in GCP project — see [`../GCP_OAUTH_SETUP.md`](../GCP_OAUTH_SETUP.md) |
+| `ANTHROPIC_API_KEY` | Claude Sonnet 4.6 |
+| `RESEND_API_KEY` | Without it, brief send routes return 503 |
+| `RL_KEY` | Rooflink API token |
+| `NEWSAPI_KEY` | NewsAPI bearer |
+| `CRON_SECRET` | Bearer used by GitHub Actions cron workflows |
+| `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY` | Upstash QStash signature verification |
 
-> Per-deploy preview URLs are protected by Vercel Deployment Protection
-> (require a Vercel login). The canonical `vera-mvp.vercel.app` is publicly
-> reachable but `/dashboard/*` is gated by our own auth.
+Vestigial Neon-style vars (`POSTGRES_*`, `PGHOST*`, `NEON_PROJECT_ID`, etc.) remain in the Vercel env from the Neon integration era but are unused by application code. Removable opportunistically.
+
+---
+
+## How a request flows in production
+
+```
+User clicks /dashboard/aging
+   ▼
+Vercel Function (Next.js route handler)
+   ▼
+withAuth(handler)
+   ├─ middleware reads __Secure-authjs.session-token (JWT)
+   └─ AsyncLocalStorage audit context populated
+   ▼
+getData(tenantId)
+   ├─ cache key probe: SELECT id FROM BackfillRun WHERE promoted=true
+   ├─ cache hit (in-memory, per function instance) → return cached
+   └─ cache miss:
+       ├─ getLiveARJobsWithContext(tenantId)
+       │   └─ ONE SQL query against vera_prod:
+       │       DISTINCT ON (rooflinkId) latest payload per AR-eligible job,
+       │       LEFT JOIN address-count CTE for duplicate-address anomaly
+       │   → ~130 rows × ~5 KB ≈ 650 KB transferred
+       ├─ Zod parse + toARJob() per row (heat score, aging, anomalies)
+       └─ cache result keyed by promoted-run-id list
+   ▼
+GeneratedData → JSON response to browser
+```
+
+Cold start: ~1.5 s end-to-end. Cache hit on the same instance: <50 ms.
+
+---
+
+## Deployment
+
+Single canonical recipe — execute from `/Users/aditya-levich/Build/israil_mvp`,
+**never from a worktree** (worktrees bundle their own gitignored data and have
+hit Vercel's 100 MB upload limit before).
+
+```bash
+# Code-only deploy (after merging to main)
+vercel --prod --yes
+
+# Env var change + redeploy (e.g. flipping a flag)
+vercel env rm USE_DB_DATA_SOURCE production -y
+echo "1" | vercel env add USE_DB_DATA_SOURCE production
+vercel --prod --yes
+```
+
+### Common build issues
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Build fails: `Cannot find module @vera/ui` | Vercel project's Root Directory isn't `apps/web` | Settings → General → Root Directory = `apps/web` |
+| Build fails: `data/jobs_dedup.jsonl: ENOENT` | The legacy JSONL isn't committed; the build is reaching for it somewhere it shouldn't | Search for any newly-introduced read of `jobs_dedup.jsonl`; the runtime path should not touch it |
+| `/api/chat` returns 500 in production | `ANTHROPIC_API_KEY` not set | Add to Production env, redeploy |
+| Dashboard returns 500 after `USE_DB_DATA_SOURCE=1` flip | DB read path returning too much data (legacy 200 MB issue) OR vera_app role can't reach DB | Smoke-test the merge view query directly against the DB. Roll back the flag if needed (~30 s). |
+| Deploy times out building → "Out of memory" | Next.js 16 + Tailwind 4 hitting Vercel's default node memory | Set `NODE_OPTIONS=--max-old-space-size=4096` in env |
+| Vercel upload exceeds 100 MB | Trying to deploy from a worktree with cached `data/jobs_dedup.jsonl` | Deploy from canonical repo only; `.vercelignore` excludes `worktrees/` (already in place) |
+
+---
+
+## Refreshing the data
+
+**Production data is live.** New backfills push new data automatically. No
+deploy required to refresh dashboards.
+
+| What you want | How to do it |
+|---|---|
+| Pull the latest from Rooflink right now | `/dashboard/scheduler` → Run-now on `rooflink_jobs` and/or `rooflink_lineitems` |
+| Schedule recurring backfills | `/dashboard/scheduler` → set cadence (daily / weekly / monthly), pick time |
+| Add a one-shot scheduled brief send | `/dashboard/scheduler` → Schedule (uses Resend `scheduled_at`) |
+
+See [`OPERATIONS.md`](OPERATIONS.md) for the full runbook including how to
+diagnose a stuck backfill or a failed brief send.
+
+---
+
+## What's deliberately not infrastructure
+
+- No staging environment. Local dev (`vera_dev` on localhost) is the only non-prod target.
+- No CDN-level caching of API responses. In-process Vercel function cache only.
+- No background workers outside QStash + GitHub Actions. We don't run Sidekiq, Celery, etc.
+- No analytics/metrics platform. Vercel built-in metrics only.

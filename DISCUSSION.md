@@ -314,7 +314,7 @@ A lot of polish landed alongside the headline items. Worth calling out individua
 
 **Data + docs hygiene**
 - Preprocess now maps case-insensitive `'unknown'` to `null` so the literal string can never leak into UI labels.
-- `DEMO_SCRIPT.md` + `README.md` updated to point at `/design` (was `/dashboard/design`).
+- `docs/_history/DEMO_SCRIPT_brandon.md` + `README.md` updated to point at `/design` (was `/dashboard/design`).
 - `NEXT_FEATURES.md` captures the Phase 2 backlog distilled after the May 5 demo — most of which has now shipped.
 
 ### Open from May 5 — for context only (Israel said these can flex)
