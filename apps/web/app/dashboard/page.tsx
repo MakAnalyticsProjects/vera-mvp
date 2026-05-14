@@ -8,7 +8,7 @@ import {
   MetricTile,
 } from '@vera/ui';
 import { formatUSD } from '@vera/utils';
-import { getData } from '@/lib/data';
+import { getDataForCurrentSession } from '@/lib/data';
 import { BriefingCard, type AIBriefing, type BriefingSource } from './_components/BriefingCard';
 import { db } from '@/lib/db';
 
@@ -68,7 +68,7 @@ async function getLatestBriefing(): Promise<AIBriefing | null> {
 }
 
 export default async function DashboardOverview() {
-  const { jobs, totalAR } = getData();
+  const { jobs, totalAR } = await getDataForCurrentSession();
   const latestBriefing = await getLatestBriefing();
 
   const critical = jobs.filter((j) => j.heatBand === 'critical');

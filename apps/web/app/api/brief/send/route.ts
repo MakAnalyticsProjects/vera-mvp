@@ -96,6 +96,9 @@ export type SendBriefInput = {
   to: string;
   sendAt?: string;
   cadence?: 'daily' | 'weekly' | 'monthly';
+  /** Tenant whose snapshot to read. HTTP route resolves it from the session;
+   *  cron caller passes the schedule's tenantId. */
+  tenantId: number;
 };
 
 export type SendBriefResult =
@@ -123,8 +126,8 @@ export async function sendBrief(input: SendBriefInput): Promise<SendBriefResult>
     };
   }
 
-  const { to, sendAt, cadence = 'daily' } = input;
-  const { jobs } = getData();
+  const { to, sendAt, cadence = 'daily', tenantId } = input;
+  const { jobs } = await getData(tenantId);
   const now = new Date();
   const brief = buildDailyBrief(jobs, now, cadence);
 
@@ -205,7 +208,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await sendBrief(parsed.data);
+    const result = await sendBrief({ ...parsed.data, tenantId: audit.tenantId });
 
     if (!result.ok) {
       // Record the failure too — useful trail when the operator wonders

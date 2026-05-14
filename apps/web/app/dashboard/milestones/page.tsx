@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
-import { getData } from '@/lib/data';
+import { getDataForCurrentSession } from '@/lib/data';
 import { MilestonesView } from './MilestonesView';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: 'Milestones' };
 
-export default function MilestonesPage() {
-  const { jobs } = getData();
+export default async function MilestonesPage() {
+  const { jobs } = await getDataForCurrentSession();
   return <MilestonesView jobs={jobs} />;
 }

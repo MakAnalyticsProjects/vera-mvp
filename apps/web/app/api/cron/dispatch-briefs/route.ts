@@ -124,6 +124,7 @@ export async function POST(req: Request) {
         const r = await sendBrief({
           to: sch.recipient,
           cadence: sch.cadence as Cadence,
+          tenantId: sch.tenantId,
         });
         if (r.ok) {
           outcome = { status: 'sent', resendId: r.id, pdfBytes: r.pdfBytes };

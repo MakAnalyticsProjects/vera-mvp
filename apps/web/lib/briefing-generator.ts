@@ -50,7 +50,7 @@ export async function generateBriefingForTenant(
     throw new Error(`Tenant ${tenantId} not found`);
   }
 
-  const { jobs } = getData();
+  const { jobs } = await getData(tenantId);
   const stats = computeStats(jobs);
   const yesterday = await getYesterdaySnapshot(tenantId);
 
@@ -127,7 +127,11 @@ export async function previewBriefing(): Promise<{
   promptTokens?: number;
   completionTokens?: number;
 }> {
-  const { jobs } = getData();
+  // Preview endpoint — pinned to the demo tenant (id=1). With the flag off
+  // this hits the bundled JSON (matches the original "DB-free" intent); with
+  // the flag on it reads the same DB path the dashboard reads, scoped to
+  // tenant 1.
+  const { jobs } = await getData(1);
   const stats = computeStats(jobs);
 
   const [nwsAlerts, newsHeadlines] = await Promise.all([

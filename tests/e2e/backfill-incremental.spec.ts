@@ -3,11 +3,13 @@ import { signInAs } from './_helpers/auth';
 
 /**
  * Coverage for the V2 incremental-sync work:
- *   - New runs default to full when no watermark exists
- *   - Successful run advances BackfillSchedule.lastSyncedAt
- *   - Next run defaults to incremental once a watermark exists
- *   - "Run full sync" override forces mode=full regardless of watermark
- *   - UI shows mode badge + last-synced timestamp
+ *   - Run-now picks incremental when ANY completed run exists for this
+ *     (tenant, source) — even with no BackfillSchedule row. The watermark
+ *     comes from BackfillRun.startedAt, not BackfillSchedule.lastSyncedAt.
+ *   - "Run full sync" override (?mode=full) forces mode=full regardless.
+ *   - Successful run advances BackfillSchedule.lastSyncedAt when a schedule
+ *     exists (denormalized cache for the dispatcher).
+ *   - UI shows mode badge + last-synced timestamp.
  *
  * Lives behind mock fixtures — these tests do NOT touch live Rooflink.
  * (mock mode is selected automatically when RL_KEY is unset; the test
@@ -15,17 +17,25 @@ import { signInAs } from './_helpers/auth';
  */
 
 test.describe('Backfill incremental sync API', () => {
-  test('first run defaults to mode=full when no watermark', async ({ browser }) => {
+  test('Run-now picks incremental when prior completed runs exist (no schedule required)', async ({
+    browser,
+  }) => {
     const context = await browser.newContext();
     await signInAs(context);
 
-    // Create the run via Run-now.
+    // This test relies on the dev DB having at least one completed run for
+    // rooflink_jobs — which is the realistic state after any prior backfill,
+    // and matches what we ship to production via the GCP migration. The
+    // pre-fix bug was: Run-now read BackfillSchedule.lastSyncedAt only, so
+    // without a schedule row the watermark was always null and mode fell back
+    // to 'full' — re-fetching all ~100k jobs every time. The fix derives the
+    // watermark from BackfillRun directly.
     const res = await context.request.post('/api/backfills/rooflink_jobs/runs');
     expect([201, 409]).toContain(res.status());
     if (res.status() === 201) {
       const json = await res.json();
-      expect(json.run.mode).toBe('full');
-      expect(json.run.syncedSince).toBeNull();
+      expect(json.run.mode).toBe('incremental');
+      expect(json.run.syncedSince).not.toBeNull();
       // Clean up.
       await context.request.post(
         `/api/backfills/rooflink_jobs/runs/${json.run.id}/cancel`,

@@ -87,6 +87,11 @@ export async function POST(req: Request) {
       },
     });
 
+    // Snapshot the AR data once per turn — tool executors share it. Avoids
+    // re-running the (cached, but still non-zero-cost) DB-path snapshot
+    // assembly multiple times within a single streamed response.
+    const data = await getData(audit.tenantId);
+
     const result = streamText({
       model: openai('gpt-4o-mini'),
       system: SYSTEM_PROMPT,
@@ -96,7 +101,7 @@ export async function POST(req: Request) {
           description: 'Fetch a single AR job by id.',
           parameters: z.object({ id: z.number() }),
           execute: async ({ id }) => {
-            const job = getData().jobs.find((j) => j.id === id);
+            const job = data.jobs.find((j) => j.id === id);
             return job ?? { error: 'not_found' };
           },
         }),
@@ -113,7 +118,7 @@ export async function POST(req: Request) {
             limit: z.number().min(1).max(50).optional(),
           }),
           execute: async ({ heatBand, repName, agingBucket, fellThroughCracks, limit }) => {
-            let jobs = getData().jobs;
+            let jobs = data.jobs;
             if (heatBand) jobs = jobs.filter((j) => j.heatBand === heatBand);
             if (agingBucket) jobs = jobs.filter((j) => j.agingBucket === agingBucket);
             if (typeof fellThroughCracks === 'boolean') {
@@ -146,7 +151,7 @@ export async function POST(req: Request) {
           parameters: z.object({ name: z.string() }),
           execute: async ({ name }) => {
             const needle = name.toLowerCase();
-            const rep = getData().reps.find((r) => r.rep.name.toLowerCase().includes(needle));
+            const rep = data.reps.find((r) => r.rep.name.toLowerCase().includes(needle));
             return rep ?? { error: 'not_found' };
           },
         }),
@@ -154,7 +159,7 @@ export async function POST(req: Request) {
           description: 'Draft a follow-up email for a job by id. Returns subject and body.',
           parameters: z.object({ jobId: z.number() }),
           execute: async ({ jobId }) => {
-            const job = getData().jobs.find((j) => j.id === jobId);
+            const job = data.jobs.find((j) => j.id === jobId);
             if (!job) return { error: 'job_not_found' };
             return generateFollowUpDraft(job);
           },
