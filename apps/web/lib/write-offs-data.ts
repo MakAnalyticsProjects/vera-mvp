@@ -6,7 +6,7 @@ import {
   type WriteOffRecord,
   type WriteOffsFile,
 } from '@vera/types';
-import { isInARWorkingSet, toWriteOffRecord } from '@vera/domain';
+import { toWriteOffRecord } from '@vera/domain';
 import writeOffsJson from '@/data/write-offs.json';
 import {
   getLiveJobs,
@@ -23,15 +23,30 @@ import { auth } from './auth';
  *     snapshot produced by `scripts/fetch-write-offs.ts`.
  *
  *   - **DB path** (`USE_DB_DATA_SOURCE=1`) — join the latest promoted
- *     RawRooflinkJob rows (AR working set, filtered down) against the
- *     promoted RawRooflinkLineItems rows for the same tenant, run
- *     `toWriteOffRecord` from `@vera/domain` to keep detection logic in one
- *     place, and aggregate totals at request time. Cached per
- *     `(tenantId, jobs-version, lineitems-version)`.
+ *     RawRooflinkJob rows against the promoted RawRooflinkLineItems rows
+ *     for the same tenant, run `toWriteOffRecord` from `@vera/domain` to
+ *     keep detection logic in one place, drop records with an install date
+ *     before `INSTALL_DATE_CUTOFF`, and aggregate totals at request time.
+ *     Cached per `(tenantId, jobs-version, lineitems-version)`.
+ *
+ *     Scope mirrors `scripts/regen-write-offs-from-db.ts` exactly so the
+ *     numbers the dashboard shows match the build-time JSON snapshot
+ *     (`apps/web/data/write-offs.json`) post-cutover: no AR working-set
+ *     filter, 2024-01-01 install-date cutoff, scope = 'all-estimates'.
  *
  * Single feature flag (`USE_DB_DATA_SOURCE`) gates both this and the metrics
  * cutover so rollback is one toggle.
  */
+
+/**
+ * Only include jobs whose install (date_completed) is on or after this
+ * date. Historical pre-2024 write-offs are noise — the team only acts on
+ * recent installs. Null install dates (jobs not yet completed) are also
+ * excluded. Set to `null` to disable the filter.
+ *
+ * Must stay in sync with `scripts/regen-write-offs-from-db.ts`.
+ */
+const INSTALL_DATE_CUTOFF: string | null = '2024-01-01';
 
 // ---------------------------------------------------------------------------
 // JSON path — unchanged behavior; the snapshot is bundled at build time.
@@ -82,19 +97,21 @@ async function getWriteOffsFromDb(tenantId: number): Promise<WriteOffsFile> {
     payloadByEstimateId.set(row.estimateId, row.payload);
   }
 
-  // Filter to the AR working set and project each (job, payload) pair into
-  // a WriteOffRecord. Jobs without a primary_estimate.id or without an
-  // Amount Withheld discount return null and are skipped.
+  // Project each (job, payload) pair into a WriteOffRecord. Scope is
+  // all-estimates (no AR working-set filter) with an install-date cutoff —
+  // mirrors scripts/regen-write-offs-from-db.ts so DB and JSON paths agree.
   const records: WriteOffRecord[] = [];
   let candidatesFetched = 0;
-  let fetchErrors = 0;
+  const fetchErrors = 0;
   let skipped404 = 0;
+  const cutoffMs = INSTALL_DATE_CUTOFF
+    ? new Date(INSTALL_DATE_CUTOFF).getTime()
+    : null;
 
   for (const row of jobRows) {
     const parsed = RoofLinkJobSchema.safeParse(row.payload);
     if (!parsed.success) continue;
     const job: RoofLinkJob = parsed.data;
-    if (!isInARWorkingSet(job)) continue;
 
     const estimateId = job.primary_estimate?.id;
     if (estimateId == null) continue;
@@ -103,15 +120,22 @@ async function getWriteOffsFromDb(tenantId: number): Promise<WriteOffsFile> {
     const payload = payloadByEstimateId.get(String(estimateId));
     if (payload == null) {
       // No line-items row for this estimate yet — analogous to a 404 from
-      // the seed script. The estimate exists but we haven't fetched its
-      // breakdown into the DB. Count it so the dashboard surface can flag
+      // the seed script. Count it so the dashboard surface can flag
       // partial coverage.
       skipped404 += 1;
       continue;
     }
 
     const record = toWriteOffRecord(job, payload);
-    if (record) records.push(record);
+    if (!record) continue;
+
+    if (cutoffMs !== null) {
+      if (record.installDate == null) continue;
+      const installMs = new Date(record.installDate).getTime();
+      if (Number.isNaN(installMs) || installMs < cutoffMs) continue;
+    }
+
+    records.push(record);
   }
 
   records.sort((a, b) => b.amountWithheld - a.amountWithheld);
@@ -120,7 +144,7 @@ async function getWriteOffsFromDb(tenantId: number): Promise<WriteOffsFile> {
 
   const data: WriteOffsFile = WriteOffsFileSchema.parse({
     generatedAt: new Date().toISOString(),
-    scope: 'ar-working-set',
+    scope: 'all-estimates',
     totals: {
       candidatesFetched,
       candidatesWithWriteOffs: records.length,
