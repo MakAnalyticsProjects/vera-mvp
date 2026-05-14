@@ -38,6 +38,8 @@ This file is the source of truth for how code is written in this repository. Eve
 
 13. **Shared UI primitives live in `@vera/ui`, not in page files.** If you're about to write a small headless component (tabs, modal, dropdown) inline in a page, stop and add it to `shared/ui/src/components/` first, then import from `@vera/ui`. Page-local one-offs accumulate into N copies of slightly different tab buttons. The design system page at `/design` is the inventory of what already exists — check there before adding anything new.
 
+14. **Every production deploy gets an entry in [`docs/RELEASE.md`](docs/RELEASE.md), in the same change set.** When you ship to production — whether via `vercel --prod --yes` after a merge, an env-var flip + redeploy, or any other path that lands new behavior on `vera-mvp.vercel.app` — add a release-log entry **before** running the deploy. The entry includes: date, merge SHA(s), the user-visible change, and the rollback path if non-obvious. The point isn't bureaucracy; it's that "what's live right now?" should always have an answer in `RELEASE.md` without having to dig through commits. Treat it like the audit log for prod itself.
+
 ---
 
 ## Tech stack — pinned
@@ -115,6 +117,7 @@ data/                      gitignored — source + generated artifacts
 - **Vercel git auto-deploy is not working today** — the Vercel team is owned by the `hexabytecode` GitHub account, the repo is owned by `adityauphade-mac`, and Vercel can't see this namespace. Pushes to `main` do not trigger a deploy. After merging to `main`, run `vercel --prod --yes` from the canonical main repo root every time. (Once the identity mismatch is resolved, this becomes automatic — see memory S1620 for the full diagnosis.)
 - **Modifying `.github/workflows/*` needs the `workflow` OAuth scope** which the default `gh` and OAuth tokens here don't have. You'll get a misleading 404 on the Contents API or a workflow-scope rejection from `git push`. Two paths: use the GitHub web UI (your browser session has full owner permissions) for one-off edits, or refresh CLI access once with `gh auth refresh -h github.com -s workflow`.
 - **One commit, one logical change.** Bundling a refactor with an infrastructure migration in the same PR (we did this with PR #13) works but makes review harder. Default to separate PRs unless the changes are inseparable.
+- **Add the `docs/RELEASE.md` entry before you deploy, not after.** Per rule #14. A deploy without a release-log entry is incomplete. Format: date, merge SHA(s) on `main`, the user-visible change in plain English, rollback path if non-obvious. Newest entry on top.
 
 ---
 
