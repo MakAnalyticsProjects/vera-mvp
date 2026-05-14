@@ -17,6 +17,11 @@ playwright-report
 test-results
 coverage
 
+# Production secrets recovery copy — never upload. See CLAUDE.md
+# "Production environment" for the policy. The runtime reads its env
+# from Vercel's runtime, not from this file.
+.env.prod
+
 # Misc
 .DS_Store
 *.log

@@ -323,9 +323,43 @@ Every route validates request input with Zod and returns Zod-validated JSON. Das
 | `ANTHROPIC_API_KEY` | server only | Never expose. Lives in Vercel project settings + `.env.local`. |
 | `OPENAI_API_KEY` | server only | Used by `/api/chat` until the Anthropic migration. |
 | `RESEND_API_KEY` | server only | Used by `/api/brief/send` and `/api/follow-ups/send`. Without it, the routes return 503. Domain is verified — emails are sent from `EMAIL_FROM` (default `Vera <onboarding@resend.dev>`; production uses the verified Priority Roofs domain). No recipient restrictions. |
+| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | server only | GCP Cloud SQL `vera_prod` at `34.56.121.151:5432`. Stored in Vercel as **Sensitive** — the dashboard "Reveal" button is greyed out and `vercel env pull` returns an empty string. Recovery copy lives in `.env.prod` (see below). |
 | `NEXT_PUBLIC_*` | client OK | Reserved for genuinely public values; avoid for now. |
 
-`.env.local` is gitignored. `.env.example` is checked in with empty values.
+`.env.local` (local dev) and `.env.prod` (production recovery) are both gitignored. `.env.example` is checked in with empty values.
+
+### Production environment — single source of truth + recovery
+
+The **deployed runtime reads its env from Vercel.** Vercel is authoritative for production. Local processes never connect to prod env vars.
+
+But Vercel's "Sensitive" env type is write-only — once saved, you cannot read the value back through the dashboard, the CLI (`vercel env pull` returns empty), or the API. Anything that looks like a credential (`DATABASE_URL`, `AUTH_SECRET`, `GOOGLE_CLIENT_SECRET`, signing keys, API tokens) ends up Sensitive. If we ever lose those values — project recreated, vendor lockout, migration — Vercel cannot restore them for us.
+
+`/.env.prod` is the **manual recovery copy**. It mirrors every production env var, gitignored and vercelignored. **Not used at runtime by any process.** Its only job is to make Vercel's Sensitive lockout recoverable.
+
+**Hard rules for `.env.prod`:**
+
+1. **Never commit it.** Listed in `.gitignore` line 26.
+2. **Never deploy it.** Listed in `.vercelignore`.
+3. **When you change a prod env var in the Vercel dashboard, update `.env.prod` in the same sitting.** The two surfaces drift = the recovery copy is worthless.
+4. **Not used at build/runtime.** Nothing reads it. Vercel deploys read from Vercel runtime env; local dev reads from `apps/web/.env.local`. The `.env.prod` file is for human-led recovery only.
+5. **Treat it like the password manager entry it effectively is.** Don't paste contents into chat, don't share over Slack, don't cat it in CI logs. If you need to inspect, `grep` for the specific key.
+
+**Recovery flow if Vercel loses an env var (or the project is recreated):**
+
+```bash
+# Restore everything from .env.prod to Vercel production env:
+while IFS='=' read -r KEY VAL; do
+  [[ -z "$KEY" || "$KEY" =~ ^# ]] && continue
+  # strip surrounding quotes if present
+  VAL="${VAL%\"}"; VAL="${VAL#\"}"
+  printf '%s' "$VAL" | vercel env add "$KEY" production
+done < .env.prod
+vercel --prod --yes
+```
+
+**When migrating a credential** (new DB password, rotated API key, etc.) the sequence is: update `.env.prod` → update Vercel dashboard → update local `apps/web/.env.local` if dev uses the same value → redeploy.
+
+Stale env vars (the old Neon `POSTGRES_*` / `PG*` / `NEON_PROJECT_ID` set from the Vercel Marketplace Neon integration before the GCP cutover) have been removed from Vercel as of 2026-05-14. If you see a stale credential reappear, the integration may have been re-installed — check **Vercel → Project → Integrations**.
 
 ---
 
