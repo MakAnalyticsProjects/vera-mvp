@@ -4,6 +4,11 @@ import { signInAs } from './_helpers/auth';
 test.describe('Scheduler', () => {
   test.beforeEach(async ({ context }) => {
     await signInAs(context);
+    // Hermetic: clear all brief schedules between tests so each starts in
+    // the "no row yet" state. Tests that need a schedule create it via PUT.
+    for (const cadence of ['daily', 'weekly', 'monthly']) {
+      await context.request.delete(`/api/schedules/${cadence}`).catch(() => {});
+    }
   });
 
   test('renders header and three reports', async ({ page }) => {
@@ -67,5 +72,34 @@ test.describe('Scheduler', () => {
     await page.getByRole('tab', { name: 'Data sync' }).click();
     await expect(page.getByTestId('backfill-card-rooflink_jobs')).toBeVisible();
     await expect(page.getByTestId('backfill-card-rooflink_lineitems')).toBeVisible();
+  });
+
+  test('Daily brief recipients chip input accepts multiple emails and gates Save', async ({
+    page,
+  }) => {
+    // Hermetic: clear any existing schedule.
+    await page.request.delete('/api/schedules/daily');
+
+    await page.goto('/dashboard/scheduler');
+    const recipientsField = page.getByRole('group', {
+      name: 'Recipients for Daily AR brief',
+    });
+    await expect(recipientsField).toBeVisible();
+
+    // Add two recipients via the input — Enter commits each as a chip.
+    const input = recipientsField.locator('input[type="email"]');
+    await input.fill('ops@example.com');
+    await input.press('Enter');
+    await expect(recipientsField.getByText('ops@example.com')).toBeVisible();
+
+    await input.fill('finance@example.com');
+    await input.press('Enter');
+    await expect(recipientsField.getByText('finance@example.com')).toBeVisible();
+
+    // Invalid email shows inline error and is rejected from the chip set.
+    await input.fill('not-an-email');
+    await input.press('Enter');
+    await expect(page.getByText(/Not a valid email/i)).toBeVisible();
+    await expect(recipientsField.getByText('not-an-email')).toHaveCount(0);
   });
 });

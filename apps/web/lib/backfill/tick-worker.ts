@@ -273,9 +273,51 @@ async function markFailed(runId: number, reason: string): Promise<void> {
 }
 
 /**
- * Email the tenant's user(s) when a run terminates in failure. Single-tenant
- * V1: there's one user per tenant; we send to all of them. No separately-
- * configured "ops email" — the logged-in user IS the recipient.
+ * Look up the configured recipient list for a (tenant, source) pair from
+ * `BackfillSchedule.recipients`. If none is configured (no schedule row, or
+ * empty list), emit a `backfill.notification_skipped_no_recipients` audit
+ * row so the gap is visible in the audit log, then return empty.
+ *
+ * This applies to BOTH scheduled and manual (Run-now) syncs — the recipient
+ * list is keyed on (tenant, source), not on who triggered the run.
+ */
+async function resolveSyncRecipients(
+  tenantId: number,
+  source: string,
+  runId: number,
+): Promise<string[]> {
+  const schedule = await db.backfillSchedule.findUnique({
+    where: { tenantId_source: { tenantId, source } },
+    select: { recipients: true },
+  });
+  const recipients = schedule?.recipients ?? [];
+  if (recipients.length === 0) {
+    try {
+      await recordAudit(db, {
+        tenantId,
+        userId: null,
+        userEmail: null,
+        category: 'backfill',
+        action: 'notification_skipped_no_recipients',
+        entityType: 'BackfillRun',
+        entityId: String(runId),
+        summary: `${friendlySourceLabel(source)} sync notification skipped — no recipients configured`,
+        details: { source, runId },
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[backfill] failed to audit notification skip for run #${runId}: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+  }
+  return recipients;
+}
+
+/**
+ * Email the configured sync recipients when a run terminates in failure.
+ * Recipients come from `BackfillSchedule.recipients`; if unset, the email
+ * is skipped and the skip is recorded in the audit log.
  *
  * Dev fallback: when RESEND_API_KEY is unset, logs the would-be email so
  * the failure path is visible without provisioning Resend locally.
@@ -292,16 +334,8 @@ async function notifyFailure(
     select: { tenantId: true },
   });
   if (!run) return;
-  const users = await db.user.findMany({
-    where: { tenantId: run.tenantId },
-    select: { email: true },
-  });
-  if (users.length === 0) {
-    // eslint-disable-next-line no-console
-    console.warn(`[backfill] no users found for tenant ${run.tenantId}; skipping email`);
-    return;
-  }
-  const recipients = users.map((u) => u.email);
+  const recipients = await resolveSyncRecipients(run.tenantId, source, runId);
+  if (recipients.length === 0) return;
 
   const sourceFriendly = friendlySourceLabel(source);
   const subject = `${sourceFriendly}: sync failed`;
@@ -338,17 +372,17 @@ async function notifyFailure(
     return;
   }
 
-  for (const to of recipients) {
-    const result = await sendEmail({ to, subject, html });
-    if (result.ok) {
-      // eslint-disable-next-line no-console
-      console.warn(`[backfill] failure email sent to ${to} (resend id: ${result.id})`);
-    } else {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[backfill] failure email to ${to} failed: ${result.reason === 'send_failed' ? result.message : result.reason}`,
-      );
-    }
+  const result = await sendEmail({ to: recipients, subject, html });
+  if (result.ok) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[backfill] failure email sent to ${recipients.join(', ')} (resend id: ${result.id})`,
+    );
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[backfill] failure email to ${recipients.join(', ')} failed: ${result.reason === 'send_failed' ? result.message : result.reason}`,
+    );
   }
 }
 
@@ -510,12 +544,8 @@ async function notifySuccess(run: {
   startedAt: Date | null;
   finishedAt: Date | null;
 }): Promise<void> {
-  const users = await db.user.findMany({
-    where: { tenantId: run.tenantId },
-    select: { email: true },
-  });
-  if (users.length === 0) return;
-  const recipients = users.map((u) => u.email);
+  const recipients = await resolveSyncRecipients(run.tenantId, run.source, run.id);
+  if (recipients.length === 0) return;
 
   const sourceFriendly = friendlySourceLabel(run.source);
   const modeFriendly = run.mode === 'incremental' ? 'Incremental sync' : 'Full sync';
@@ -591,24 +621,22 @@ async function notifySuccess(run: {
     );
     return;
   }
-  for (const to of recipients) {
-    const result = await sendEmail({
-      to,
-      subject,
-      html,
-      attachments: pdfAttachment ? [pdfAttachment] : undefined,
-    });
-    if (result.ok) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[backfill] success email sent to ${to} (resend id: ${result.id}${pdfAttachment ? `, pdf ${pdfAttachment.content.byteLength}b` : ''})`,
-      );
-    } else {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[backfill] success email to ${to} failed: ${result.reason === 'send_failed' ? result.message : result.reason}`,
-      );
-    }
+  const result = await sendEmail({
+    to: recipients,
+    subject,
+    html,
+    attachments: pdfAttachment ? [pdfAttachment] : undefined,
+  });
+  if (result.ok) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[backfill] success email sent to ${recipients.join(', ')} (resend id: ${result.id}${pdfAttachment ? `, pdf ${pdfAttachment.content.byteLength}b` : ''})`,
+    );
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[backfill] success email to ${recipients.join(', ')} failed: ${result.reason === 'send_failed' ? result.message : result.reason}`,
+    );
   }
 }
 

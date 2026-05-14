@@ -20,6 +20,7 @@ export const AUDIT_CATEGORIES = [
   'briefing',
   'chat',
   'backfill',
+  'follow_up',
 ] as const;
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
 
@@ -51,7 +52,9 @@ export const AUDIT_ACTIONS_BY_CATEGORY = {
     'run_cancelled',
     'run_completed',
     'run_failed',
+    'notification_skipped_no_recipients',
   ],
+  follow_up: ['sent', 'send_failed'],
 } as const satisfies Record<AuditCategory, readonly string[]>;
 
 export type AuditAction<C extends AuditCategory = AuditCategory> =
@@ -110,6 +113,7 @@ export const AUDIT_CATEGORY_LABEL: Record<AuditCategory, string> = {
   briefing: 'Briefing',
   chat: 'Chat',
   backfill: 'Backfill',
+  follow_up: 'Follow-up',
 };
 
 /**
@@ -155,6 +159,9 @@ const ACTION_LABELS: Record<string, string> = {
   run_cancelled: 'Run cancelled',
   run_completed: 'Run completed',
   run_failed: 'Run failed',
+  notification_skipped_no_recipients: 'Notification skipped (no recipients)',
+  // follow_up — distinct from brief.sent_now so the column label is clear
+  sent: 'Sent',
 };
 
 export function humanizeAction(action: string): string {

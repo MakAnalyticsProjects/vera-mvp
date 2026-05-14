@@ -61,7 +61,8 @@ model Schedule {
   timeLocal  String
   /// IANA tz, e.g. 'America/Chicago'
   timezone   String
-  recipient  String
+  /// Up to 6 recipient emails. Empty array is rejected by the API.
+  recipients String[]
   enabled    Boolean   @default(true)
   nextRunAt  DateTime?
   lastRunAt  DateTime?
@@ -84,7 +85,9 @@ model SendLog {
   /// nullable — manual Send-now sends have no schedule
   scheduleId   Int?
   cadence      String
-  toEmail      String
+  /// All recipients of this send. Resend accepts a `to: string[]`, so one
+  /// row captures one Resend call (potentially multiple humans).
+  toEmails     String[]
   resendId     String?
   pdfBytes     Int?
   /// 'sent' | 'failed' | 'cancelled'
@@ -187,6 +190,9 @@ model BackfillSchedule {
   timeLocal   String
   /// IANA tz, e.g. 'America/Chicago'
   timezone    String
+  /// Up to 6 recipient emails for sync completion/failure alerts. Empty
+  /// array means no notifications are sent (sync still runs).
+  recipients  String[]
   enabled     Boolean   @default(true)
   nextRunAt   DateTime?
   lastRunAt   DateTime?

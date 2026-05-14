@@ -30,9 +30,28 @@ const PutBodySchema = z.object({
   dayOfMonth: z.string().nullable().optional(),
   timeLocal: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   timezone: z.string().min(1),
-  recipient: z.string().email(),
+  recipients: z
+    .array(z.string().email())
+    .min(1, 'Add at least one recipient')
+    .max(6, 'At most 6 recipients')
+    .transform((arr) =>
+      Array.from(new Set(arr.map((s) => s.trim().toLowerCase()))),
+    ),
   enabled: z.boolean().default(true),
 });
+
+function summarizeRecipients(list: readonly string[]): string {
+  if (list.length === 0) return 'no recipients';
+  if (list.length <= 3) return list.join(', ');
+  return `${list.length} recipients (${list.slice(0, 2).join(', ')}, …)`;
+}
+
+function recipientsEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
 
 /**
  * The cron dispatcher only wakes every 5 min, so a non-grid time would
@@ -136,7 +155,7 @@ export async function PUT(req: Request, ctx: RouteContext) {
           dayOfMonth,
           timeLocal,
           timezone: parsed.data.timezone,
-          recipient: parsed.data.recipient,
+          recipients: parsed.data.recipients,
           enabled: parsed.data.enabled,
           nextRunAt,
         },
@@ -145,7 +164,7 @@ export async function PUT(req: Request, ctx: RouteContext) {
           dayOfMonth,
           timeLocal,
           timezone: parsed.data.timezone,
-          recipient: parsed.data.recipient,
+          recipients: parsed.data.recipients,
           enabled: parsed.data.enabled,
           nextRunAt,
         },
@@ -158,7 +177,7 @@ export async function PUT(req: Request, ctx: RouteContext) {
     const label = CADENCE_LABEL[cadence];
     if (!existing) {
       action = 'created';
-      summaryDetail = `${label} scheduled for ${saved.recipient}`;
+      summaryDetail = `${label} scheduled for ${summarizeRecipients(saved.recipients)}`;
     } else if (existing.enabled && !saved.enabled) {
       action = 'paused';
       summaryDetail = `${label} paused`;
@@ -168,8 +187,8 @@ export async function PUT(req: Request, ctx: RouteContext) {
     } else {
       action = 'updated';
       const changes: string[] = [];
-      if (existing.recipient !== saved.recipient)
-        changes.push(`recipient → ${saved.recipient}`);
+      if (!recipientsEqual(existing.recipients, saved.recipients))
+        changes.push(`recipients → ${summarizeRecipients(saved.recipients)}`);
       if (existing.timeLocal !== saved.timeLocal)
         changes.push(`time → ${saved.timeLocal}`);
       if ((existing.dayOfWeek ?? null) !== (saved.dayOfWeek ?? null))

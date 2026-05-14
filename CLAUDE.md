@@ -21,7 +21,7 @@ This file is the source of truth for how code is written in this repository. Eve
 1. **No `any` in TypeScript.** If a type is unclear, infer it from the data, define it in `shared/types`, or use `unknown` and narrow.
 2. **No business logic in components.** Components consume; `shared/domain/*` computes. Heat score, aging, anomaly detection — all in `shared/domain/`.
 3. **The dashboard never fetches the raw 188 MB JSONL or the full ~250 MB JSONB population at runtime.** SQL pushes filtering and aggregation into Postgres (see `apps/web/lib/backfill/merge-view.ts`); only the slim AR working set (~130 rows, ~650 KB) crosses the wire to the Vercel function. The legacy JSON snapshots in `apps/web/data/*.json` are dormant rollback artifacts, not part of the read path.
-4. **Outbound email only via the audited send pipeline.** All sends go through `apps/web/lib/email.ts` → Resend. Every send requires explicit user action and a confirmation step in the UI. Audit trail lives in the Resend dashboard until V2 introduces in-app history. Follow-up "drafts" remain copy-to-clipboard / `mailto:` until they're migrated to the same pipeline. Supersedes Q9 of the original spec — see `DISCUSSION.md` §6.7.
+4. **Outbound email only via the audited send pipeline.** All sends go through `apps/web/lib/email.ts` → Resend. Every send requires explicit user action and a confirmation step in the UI. The Resend domain is verified, so emails can be sent to any recipient. Both daily AR briefs and follow-up emails ride this pipeline; both land in `AuditLog` with full recipient/cc/subject/body detail. Supersedes Q9 of the original spec — see `DISCUSSION.md` §6.7.
 5. **No autosend without explicit human intent.** Scheduled sends use Resend's `scheduled_at` field — they require a user to compose, preview, and confirm a specific email targeted at a specific time. The cron dispatcher (`dispatch-briefs`) fires *user-configured* schedules at the user-specified time. No silent recurring sends without a human-authored configuration.
 6. **No new top-level packages without updating this file.** Tech stack is pinned (see below).
 7. **Every new route gets a Playwright spec before it merges.** No exceptions.
@@ -322,7 +322,7 @@ Every route validates request input with Zod and returns Zod-validated JSON. Das
 |---|---|---|
 | `ANTHROPIC_API_KEY` | server only | Never expose. Lives in Vercel project settings + `.env.local`. |
 | `OPENAI_API_KEY` | server only | Used by `/api/chat` until the Anthropic migration. |
-| `RESEND_API_KEY` | server only | Used by `/api/brief/send`. Without it, the route returns 503. Domain verification still pending — dev uses `onboarding@resend.dev` and can only send to the Resend account holder's email. |
+| `RESEND_API_KEY` | server only | Used by `/api/brief/send` and `/api/follow-ups/send`. Without it, the routes return 503. Domain is verified — emails are sent from `EMAIL_FROM` (default `Vera <onboarding@resend.dev>`; production uses the verified Priority Roofs domain). No recipient restrictions. |
 | `NEXT_PUBLIC_*` | client OK | Reserved for genuinely public values; avoid for now. |
 
 `.env.local` is gitignored. `.env.example` is checked in with empty values.

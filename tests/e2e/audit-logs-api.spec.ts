@@ -28,7 +28,7 @@ test.describe('/api/audit-logs', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'audit-test@example.com',
+        recipients: ['audit-test@example.com'],
         enabled: true,
       },
     });
@@ -39,7 +39,7 @@ test.describe('/api/audit-logs', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'audit-test-2@example.com',
+        recipients: ['audit-test-2@example.com'],
         enabled: true,
       },
     });
@@ -49,7 +49,7 @@ test.describe('/api/audit-logs', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'audit-test-2@example.com',
+        recipients: ['audit-test-2@example.com'],
         enabled: false,
       },
     });
@@ -59,7 +59,7 @@ test.describe('/api/audit-logs', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'audit-test-2@example.com',
+        recipients: ['audit-test-2@example.com'],
         enabled: true,
       },
     });
@@ -103,7 +103,7 @@ test.describe('/api/audit-logs', () => {
       data: {
         timeLocal: '09:00',
         timezone: 'America/Chicago',
-        recipient: 'filter-test@example.com',
+        recipients: ['filter-test@example.com'],
         enabled: true,
       },
     });

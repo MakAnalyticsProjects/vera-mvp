@@ -101,6 +101,8 @@ function FollowUpRow({ job, onOpen }: { job: ARJob; onOpen: () => void }) {
           />
           {job.rep?.email ? (
             <DraftEmailButton
+              jobId={job.id}
+              jobAddress={job.address}
               repName={job.rep.name}
               repEmail={job.rep.email}
               subject={draft.subject}

@@ -42,8 +42,8 @@ test.describe('Cron dispatch — race conditions', () => {
     request,
   }) => {
     // Clean any leftover schedules from previous runs.
-    await sql(`DELETE FROM "SendLog" WHERE "toEmail" = '${RACE_TEST_RECIPIENT}';`);
-    await sql(`DELETE FROM "Schedule" WHERE recipient = '${RACE_TEST_RECIPIENT}';`);
+    await sql(`DELETE FROM "SendLog" WHERE '${RACE_TEST_RECIPIENT}' = ANY("toEmails");`);
+    await sql(`DELETE FROM "Schedule" WHERE '${RACE_TEST_RECIPIENT}' = ANY(recipients);`);
 
     // 1. Create a schedule via the auth-gated API (proves the contract).
     //    PUT is upsert keyed on (tenantId, cadence) — the DELETE above
@@ -54,7 +54,7 @@ test.describe('Cron dispatch — race conditions', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: RACE_TEST_RECIPIENT,
+        recipients: [RACE_TEST_RECIPIENT],
         enabled: true,
       },
     });

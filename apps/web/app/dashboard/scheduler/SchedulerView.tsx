@@ -11,6 +11,7 @@ import {
 import {
   Button,
   Card,
+  EmailChipInput,
   Select,
   SelectContent,
   SelectItem,
@@ -51,9 +52,11 @@ import { DataSyncSection } from './DataSyncSection';
 
 type ReportId = 'daily' | 'weekly' | 'monthly';
 
+const RECIPIENTS_CAP = 6;
+
 type ReportConfig = {
   id: ReportId;
-  recipient: string;
+  recipients: string[];
   time: string; // 24-hour HH:mm
   /** Weekly: 0=Sun..6=Sat. Monthly: 'last' or '1'..'28' or 'last-business'. */
   cadenceValue?: string;
@@ -67,7 +70,7 @@ type ServerSchedule = {
   dayOfMonth: string | null;
   timeLocal: string;
   timezone: string;
-  recipient: string;
+  recipients: string[];
   enabled: boolean;
   nextRunAt: string | null;
   lastRunAt: string | null;
@@ -90,11 +93,11 @@ const STORAGE_KEY = 'vera-scheduler-v2';
 
 const DEFAULT_STATE: SchedulerState = {
   reports: {
-    daily: { id: 'daily', recipient: '', time: '08:00' },
-    weekly: { id: 'weekly', recipient: '', time: '09:00', cadenceValue: '1' },
+    daily: { id: 'daily', recipients: [], time: '08:00' },
+    weekly: { id: 'weekly', recipients: [], time: '09:00', cadenceValue: '1' },
     monthly: {
       id: 'monthly',
-      recipient: '',
+      recipients: [],
       time: '17:00',
       cadenceValue: 'last',
     },
@@ -180,6 +183,22 @@ const DAY_OF_MONTH_OPTIONS = [
   { value: 'last', label: 'Last day of the month' },
 ];
 
+function migrateReport(
+  base: ReportConfig,
+  raw: Partial<ReportConfig> & { recipient?: string },
+): ReportConfig {
+  const recipients = Array.isArray(raw.recipients)
+    ? raw.recipients.filter((s): s is string => typeof s === 'string' && s.length > 0)
+    : typeof raw.recipient === 'string' && raw.recipient.length > 0
+      ? [raw.recipient]
+      : base.recipients;
+  return {
+    ...base,
+    ...raw,
+    recipients,
+  };
+}
+
 function loadState(): SchedulerState {
   if (typeof window === 'undefined') return DEFAULT_STATE;
   try {
@@ -188,12 +207,9 @@ function loadState(): SchedulerState {
     const parsed = JSON.parse(raw);
     return {
       reports: {
-        daily: { ...DEFAULT_STATE.reports.daily, ...(parsed.reports?.daily ?? {}) },
-        weekly: { ...DEFAULT_STATE.reports.weekly, ...(parsed.reports?.weekly ?? {}) },
-        monthly: {
-          ...DEFAULT_STATE.reports.monthly,
-          ...(parsed.reports?.monthly ?? {}),
-        },
+        daily: migrateReport(DEFAULT_STATE.reports.daily, parsed.reports?.daily ?? {}),
+        weekly: migrateReport(DEFAULT_STATE.reports.weekly, parsed.reports?.weekly ?? {}),
+        monthly: migrateReport(DEFAULT_STATE.reports.monthly, parsed.reports?.monthly ?? {}),
       },
       highlights: { ...DEFAULT_STATE.highlights, ...(parsed.highlights ?? {}) },
     };
@@ -211,10 +227,32 @@ function isValidEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
+function recipientsValid(list: readonly string[]): boolean {
+  if (list.length === 0) return false;
+  if (list.length > RECIPIENTS_CAP) return false;
+  return list.every(isValidEmail);
+}
+
+function recipientsEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
+
+function summarizeRecipients(list: readonly string[]): string {
+  if (list.length === 0) return 'no recipients';
+  const [first, ...rest] = list;
+  if (first === undefined) return 'no recipients';
+  if (rest.length === 0) return first;
+  if (list.length <= 3) return list.join(', ');
+  return `${first} + ${rest.length} more`;
+}
+
 function reportFromServer(row: ServerSchedule): ReportConfig {
   return {
     id: row.cadence,
-    recipient: row.recipient,
+    recipients: row.recipients,
     time: row.timeLocal,
     cadenceValue:
       row.cadence === 'weekly'
@@ -227,7 +265,7 @@ function reportFromServer(row: ServerSchedule): ReportConfig {
 
 /** True iff the user's form differs from the saved server row. */
 function isDirty(form: ReportConfig, server: ServerSchedule): boolean {
-  if (form.recipient !== server.recipient) return true;
+  if (!recipientsEqual(form.recipients, server.recipients)) return true;
   if (form.time !== server.timeLocal) return true;
   if (form.id === 'weekly') {
     const serverDow = server.dayOfWeek === null ? null : String(server.dayOfWeek);
@@ -242,7 +280,7 @@ function isDirty(form: ReportConfig, server: ServerSchedule): boolean {
 type SendOutcome =
   | { kind: 'idle' }
   | { kind: 'pending' }
-  | { kind: 'success'; to: string; pdfBytes: number; id: string }
+  | { kind: 'success'; to: string[]; pdfBytes: number; id: string }
   | { kind: 'error'; message: string };
 
 type ScheduleOutcome =
@@ -380,9 +418,9 @@ export function SchedulerView() {
   async function sendNow(id: ReportId) {
     const cfg = state.reports[id];
     const briefTitle = REPORT_META[id].title;
-    if (!isValidEmail(cfg.recipient)) {
+    if (!recipientsValid(cfg.recipients)) {
       toast.error(`Couldn't send the ${briefTitle}`, {
-        description: 'Enter a valid recipient email first.',
+        description: 'Add at least one valid recipient first.',
       });
       return;
     }
@@ -391,7 +429,7 @@ export function SchedulerView() {
       const res = await fetch('/api/brief/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: cfg.recipient, cadence: id }),
+        body: JSON.stringify({ to: cfg.recipients, cadence: id }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -401,17 +439,18 @@ export function SchedulerView() {
         });
         return;
       }
+      const sentTo: string[] = Array.isArray(json.to) ? json.to : cfg.recipients;
       setOutcomes((o) => ({
         ...o,
         [id]: {
           kind: 'success',
-          to: json.to,
+          to: sentTo,
           pdfBytes: json.pdfBytes,
           id: json.id,
         },
       }));
       toast.success(`${briefTitle} sent`, {
-        description: `Delivered to ${json.to} · PDF ${(json.pdfBytes / 1024).toFixed(1)} KB`,
+        description: `Delivered to ${summarizeRecipients(sentTo)} · PDF ${(json.pdfBytes / 1024).toFixed(1)} KB`,
       });
     } catch (e) {
       setOutcomes((o) => ({ ...o, [id]: { kind: 'idle' } }));
@@ -429,9 +468,9 @@ export function SchedulerView() {
   async function saveSchedule(id: ReportId) {
     const cfg = state.reports[id];
     const briefTitle = REPORT_META[id].title;
-    if (!isValidEmail(cfg.recipient)) {
+    if (!recipientsValid(cfg.recipients)) {
       toast.error(`Couldn't save the ${briefTitle}`, {
-        description: 'Enter a valid recipient email first.',
+        description: 'Add at least one valid recipient first.',
       });
       return;
     }
@@ -453,7 +492,7 @@ export function SchedulerView() {
           dayOfMonth,
           timeLocal: cfg.time,
           timezone,
-          recipient: cfg.recipient,
+          recipients: cfg.recipients,
           enabled,
         }),
       });
@@ -508,7 +547,7 @@ export function SchedulerView() {
           dayOfMonth: row.dayOfMonth,
           timeLocal: row.timeLocal,
           timezone: row.timezone,
-          recipient: row.recipient,
+          recipients: row.recipients,
           enabled: nextEnabled,
         }),
       });
@@ -676,7 +715,9 @@ function ReportRow({
   const meta = REPORT_META[report.id];
   const tzLabel = tzAbbreviation(timezone);
   const cadenceLine = describeCadence(report, tzLabel);
-  const recipientValid = report.recipient ? isValidEmail(report.recipient) : true;
+  const allRecipientsParse = report.recipients.every(isValidEmail);
+  const hasRecipient = report.recipients.length > 0;
+  const recipientsOk = hasRecipient && allRecipientsParse;
 
   // Status pill follows server state. State A = "Not scheduled"; otherwise
   // "Scheduled" or "Paused" depending on `enabled` on the row. The pill is
@@ -699,12 +740,11 @@ function ReportRow({
   // Dimmed body for paused rows — at-a-glance signal that this isn't live.
   const dimBodyClass = isPaused ? 'opacity-60' : '';
 
-  // Save-button enablement. State A: any valid recipient. State B/C: only
-  // when the form has actually diverged from the server row.
+  // Save-button enablement. State A: at least one valid recipient. State B/C:
+  // only when the form has actually diverged from the server row.
   const dirty = serverRow ? isDirty(report, serverRow) : true;
   const saveDisabled =
-    !report.recipient ||
-    !recipientValid ||
+    !recipientsOk ||
     scheduleOutcome.kind === 'pending' ||
     (hasServerRow && !dirty);
 
@@ -750,7 +790,7 @@ function ReportRow({
                   nextRunAt={serverRow.nextRunAt}
                   lastRunAt={serverRow.lastRunAt}
                   timezone={timezone}
-                  recipient={serverRow.recipient}
+                  recipients={serverRow.recipients}
                 />
               ) : null}
             </div>
@@ -782,8 +822,15 @@ function ReportRow({
         {/* Editable body. Dimmed when paused so an operator scanning the
             page can see at a glance what's live. */}
         <div className={`space-y-5 transition-opacity ${dimBodyClass}`}>
-          {/* Config row */}
-          <div className="border-border bg-bg-base/40 grid grid-cols-1 gap-4 rounded-2xl border p-4 md:grid-cols-3">
+          {/* Cadence + time row — daily is single-column, weekly/monthly
+              add the day-of-week / day-of-month picker so this is two
+              columns. Recipients moved to its own row below so the chip
+              input always gets full card width. */}
+          <div
+            className={`border-border bg-bg-base/40 grid grid-cols-1 gap-4 rounded-2xl border p-4 ${
+              report.id === 'daily' ? '' : 'md:grid-cols-2'
+            }`}
+          >
             {report.id === 'weekly' ? (
               <Field label="Day of week">
                 <ShadcnSelect
@@ -812,30 +859,24 @@ function ReportRow({
                 ariaLabel={`Time for ${REPORT_META[report.id].title}`}
               />
             </Field>
+          </div>
 
-            <Field
-              label="Recipient"
-              className={report.id === 'daily' ? 'md:col-span-2' : ''}
-              error={
-                report.recipient && !recipientValid
-                  ? 'Enter a valid email address'
-                  : undefined
-              }
-            >
-              <input
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                placeholder="gm@yourcompany.com"
-                value={report.recipient}
-                onChange={(e) => onChange({ recipient: e.target.value })}
-                className={
-                  report.recipient && !recipientValid
-                    ? 'border-heat-critical focus:border-heat-critical bg-bg-card text-text-primary placeholder:text-text-muted w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors'
-                    : 'border-border focus:border-accent bg-bg-card text-text-primary placeholder:text-text-muted w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors'
-                }
-              />
-            </Field>
+          {/* Recipients row — full width so chips always have room to
+              breathe, matching the Data sync section's notification block. */}
+          <div className="border-border bg-bg-base/40 space-y-1.5 rounded-2xl border p-4">
+            <label className="text-text-muted text-[0.65rem] tracking-[0.2em] uppercase">
+              Recipients
+            </label>
+            <p className="text-text-secondary text-xs">
+              Everyone listed here gets this brief when it sends.
+            </p>
+            <EmailChipInput
+              value={report.recipients}
+              onChange={(next) => onChange({ recipients: next })}
+              max={RECIPIENTS_CAP}
+              placeholder="gm@yourcompany.com"
+              ariaLabel={`Recipients for ${meta.title}`}
+            />
           </div>
 
           {/* Action row */}
@@ -871,11 +912,7 @@ function ReportRow({
               <Button
                 type="button"
                 onClick={onSendNow}
-                disabled={
-                  !report.recipient ||
-                  !recipientValid ||
-                  outcome.kind === 'pending'
-                }
+                disabled={!recipientsOk || outcome.kind === 'pending'}
               >
                 {outcome.kind === 'pending' ? (
                   <span className="whitespace-nowrap">Sending…</span>
@@ -903,16 +940,21 @@ function ServerRunLine({
   nextRunAt,
   lastRunAt,
   timezone,
-  recipient,
+  recipients,
 }: {
   nextRunAt: string | null;
   lastRunAt: string | null;
   timezone: string;
-  recipient: string;
+  recipients: string[];
 }) {
   return (
     <p className="text-text-muted text-xs">
-      <span>To <strong className="text-text-secondary">{recipient}</strong></span>
+      <span>
+        To{' '}
+        <strong className="text-text-secondary">
+          {summarizeRecipients(recipients)}
+        </strong>
+      </span>
       {nextRunAt ? (
         <>
           <span className="mx-1.5">·</span>
@@ -1063,20 +1105,31 @@ function ReportRowSkeleton({ cadence }: { cadence: ReportId }) {
           <Skeleton className="h-5 w-9 rounded-full" />
         </div>
 
-        {/* Config row — same grid as the real row, filled with shimmer. */}
-        <div className="border-border bg-bg-base/40 grid grid-cols-1 gap-4 rounded-2xl border p-4 md:grid-cols-3">
+        {/* Cadence + time row — matches the new two-column layout for
+            weekly/monthly, single column for daily. Skeletons keep the
+            two-column shape so the layout doesn't shift on hydrate. */}
+        <div
+          className={`border-border bg-bg-base/40 grid grid-cols-1 gap-4 rounded-2xl border p-4 ${
+            cadence === 'daily' ? '' : 'md:grid-cols-2'
+          }`}
+        >
+          {cadence !== 'daily' ? (
+            <div className="space-y-1.5">
+              <SkeletonText width="w-20" className="h-2" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+            </div>
+          ) : null}
           <div className="space-y-1.5">
             <SkeletonText width="w-16" className="h-2" />
             <Skeleton className="h-10 w-full rounded-xl" />
           </div>
-          <div className="space-y-1.5">
-            <SkeletonText width="w-20" className="h-2" />
-            <Skeleton className="h-10 w-full rounded-xl" />
-          </div>
-          <div className="space-y-1.5">
-            <SkeletonText width="w-16" className="h-2" />
-            <Skeleton className="h-10 w-full rounded-xl" />
-          </div>
+        </div>
+
+        {/* Recipients row — full width, mirroring the real component. */}
+        <div className="border-border bg-bg-base/40 space-y-1.5 rounded-2xl border p-4">
+          <SkeletonText width="w-20" className="h-2" />
+          <SkeletonText width="w-64" />
+          <Skeleton className="h-10 w-full rounded-xl" />
         </div>
 
         {/* Action row — three skeleton buttons. */}

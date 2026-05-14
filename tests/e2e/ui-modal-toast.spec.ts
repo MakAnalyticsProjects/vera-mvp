@@ -24,6 +24,7 @@ test.describe('Modal + toast UX (rule #11)', () => {
         dayOfWeek: 1,
         timeLocal: '03:00',
         timezone: 'America/Chicago',
+        recipients: ['ops@example.com'],
         enabled: true,
       },
     });
@@ -92,6 +93,20 @@ test.describe('Modal + toast UX (rule #11)', () => {
     await signInAs(context);
     const page = await context.newPage();
 
+    // Pre-seed a schedule with at least one recipient — Run-now is gated on
+    // BackfillSchedule.recipients being non-empty so sync emails have a
+    // destination.
+    await context.request.put('/api/backfills/rooflink_lineitems/schedule', {
+      data: {
+        cadence: 'weekly',
+        dayOfWeek: 1,
+        timeLocal: '03:30',
+        timezone: 'America/Chicago',
+        recipients: ['ops@example.com'],
+        enabled: true,
+      },
+    });
+
     await page.goto('/dashboard/scheduler');
     await page.getByRole('tab', { name: 'Data sync' }).click();
     const card = page.getByTestId('backfill-card-rooflink_lineitems');
@@ -104,9 +119,11 @@ test.describe('Modal + toast UX (rule #11)', () => {
     // to 'success' when we replace the toast on completion. Mock lineitems
     // run has 40 records · batch=2 · ~1.1s/tick (chain delay) so total
     // wall time is ~22-25s. Give 45s of headroom.
+    // Target only the line-items toast so a leftover 'Rooflink jobs sync
+     // complete' toast from a prior parallel test doesn't trip strict mode.
     const successToast = page
       .locator('[data-sonner-toast][data-type="success"]')
-      .filter({ hasText: /Rooflink/i });
+      .filter({ hasText: /Rooflink (estimate line items|line items)/i });
     await expect(successToast).toBeVisible({ timeout: 45_000 });
 
     // The success toast title should NOT mention the snake_case identifier.
