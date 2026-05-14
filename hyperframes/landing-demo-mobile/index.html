@@ -1,0 +1,1467 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      :root {
+        --bg-base: #f5efe6;
+        --bg-card: #fffcf7;
+        --bg-elevated: #ffffff;
+        --bg-subtle: #ece4d3;
+        --text-primary: #1f1b16;
+        --text-secondary: #6e6258;
+        --text-muted: #9c8e80;
+        --border: #e8decf;
+        --accent: #c8854e;
+        --accent-soft: #e8c5a0;
+        --heat-cool: #7a8f6f;
+        --heat-warm: #c9a05f;
+        --heat-hot: #c8714c;
+        --heat-critical: #a14535;
+        --info: #5c7e9c;
+      }
+
+      html, body {
+        width: 1080px; height: 1920px;
+        overflow: hidden;
+        background: var(--bg-base);
+        color: var(--text-primary);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #root {
+        position: relative;
+        width: 1080px; height: 1920px;
+        background: var(--bg-base);
+      }
+
+      .scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+      .scene-content {
+        width: 100%; height: 100%;
+        padding: 100px 70px;
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+        box-sizing: border-box;
+      }
+
+      .eyebrow {
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 36px;
+        font-weight: 500;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+
+      .page-title {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 96px;
+        font-weight: 500;
+        letter-spacing: -0.014em;
+        line-height: 1.04;
+        color: var(--text-primary);
+      }
+
+      .page-sub {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-style: italic;
+        font-size: 40px;
+        color: var(--text-secondary);
+        line-height: 1.35;
+      }
+
+      .vera-mark {
+        display: inline-block;
+        width: 16px; height: 16px;
+        border-radius: 999px;
+        background: var(--accent);
+        vertical-align: middle;
+        margin-right: 18px;
+        margin-bottom: 6px;
+      }
+
+      /* ========== Shared cards / pills ========== */
+      .card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 40px 44px;
+        box-shadow: 0 10px 28px -10px rgba(31, 27, 22, 0.08);
+      }
+
+      .pill {
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        padding: 10px 20px;
+        border-radius: 999px;
+      }
+
+      .pill.muted     { background: var(--bg-subtle);                     color: var(--text-secondary); }
+      .pill.cool      { background: rgba(122, 143, 111, 0.16);           color: #455234; border: 1px solid rgba(122, 143, 111, 0.34); }
+      .pill.warm      { background: rgba(201, 160, 95, 0.18);            color: var(--text-primary); border: 1px solid rgba(201, 160, 95, 0.36); }
+      .pill.hot       { background: rgba(200, 113, 76, 0.16);            color: var(--heat-critical); border: 1px solid rgba(200, 113, 76, 0.34); }
+      .pill.critical  { background: rgba(161, 69, 53, 0.14);             color: var(--heat-critical); border: 1px solid rgba(161, 69, 53, 0.30); }
+      .pill.accent    { background: rgba(200, 133, 78, 0.16);            color: #7e4a1f; border: 1px solid rgba(200, 133, 78, 0.34); }
+
+      .dot { display: inline-block; width: 20px; height: 20px; border-radius: 999px; }
+
+      /* ========== Scene 1: Hero (avatar on top) ========== */
+      #s1 .scene-content {
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 36px;
+      }
+      #s1 .avatar-card {
+        width: 540px; height: 540px;
+        border-radius: 40px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        box-shadow: 0 24px 64px -16px rgba(31, 27, 22, 0.20);
+      }
+      #s1 .avatar-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      #s1 .headline {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 110px;
+        font-weight: 500;
+        letter-spacing: -0.012em;
+        line-height: 1.04;
+        color: var(--text-primary);
+      }
+      #s1 .headline .line { display: block; }
+      #s1 .footnote {
+        margin-top: 14px;
+        font-family: 'EB Garamond', Georgia, serif;
+        font-style: italic;
+        font-size: 38px;
+        color: var(--text-secondary);
+      }
+
+      /* ========== Scene 2: Sign in ========== */
+      #s2 .scene-content { align-items: center; justify-content: center; gap: 0; }
+      #s2 .login-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 38px;
+        padding: 80px 60px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 28px 64px -16px rgba(31, 27, 22, 0.18);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 32px;
+      }
+      #s2 .login-avatar {
+        width: 200px; height: 200px;
+        border-radius: 999px;
+        overflow: hidden;
+        border: 4px solid var(--bg-card);
+        box-shadow: 0 14px 36px -10px rgba(31, 27, 22, 0.20);
+      }
+      #s2 .login-avatar img { width: 100%; height: 100%; object-fit: cover; }
+      #s2 .login-eyebrow {
+        font-size: 26px;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+      #s2 .login-title {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 92px;
+        font-weight: 500;
+        letter-spacing: -0.012em;
+      }
+      #s2 .login-sub {
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 30px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+      }
+      #s2 .login-button {
+        margin-top: 18px;
+        background: var(--accent);
+        color: #ffffff;
+        font-size: 34px;
+        font-weight: 600;
+        padding: 28px 40px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        width: 100%;
+        box-shadow: 0 10px 28px -6px rgba(200, 133, 78, 0.50),
+                    0 4px 10px -3px rgba(200, 133, 78, 0.35);
+      }
+      #s2 .login-button svg { width: 36px; height: 36px; }
+
+      /* ========== Scene 3: Today's briefing ========== */
+      .briefing-meta {
+        display: flex; align-items: center;
+        gap: 18px;
+        font-size: 26px;
+        color: var(--text-secondary);
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+      }
+      .meta-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--text-muted); }
+      .model-pill {
+        font-size: 20px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        padding: 7px 14px;
+        border-radius: 999px;
+        background: var(--bg-subtle);
+        color: var(--text-secondary);
+        font-weight: 600;
+      }
+      .briefing-headline {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 56px;
+        font-weight: 500;
+        line-height: 1.16;
+        letter-spacing: -0.006em;
+      }
+      .briefing-list {
+        margin-top: 26px;
+        display: flex; flex-direction: column;
+        gap: 18px;
+      }
+      .briefing-item {
+        display: flex; align-items: center; gap: 24px;
+        padding: 24px 26px;
+        border-radius: 22px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+      }
+      .briefing-num {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-style: italic;
+        font-size: 46px;
+        color: var(--text-secondary);
+        width: 50px;
+        flex-shrink: 0;
+      }
+      .briefing-body {
+        font-size: 30px;
+        color: var(--text-primary);
+        flex: 1;
+        line-height: 1.3;
+      }
+      .briefing-body strong { font-weight: 600; }
+      .briefing-body em { color: var(--text-secondary); font-style: normal; }
+
+      /* ========== Scene 4: Metrics + donut ========== */
+      .metric-grid {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 22px;
+      }
+      .metric-tile {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 32px 32px;
+        box-shadow: 0 8px 22px -10px rgba(31, 27, 22, 0.06);
+      }
+      .metric-label {
+        font-size: 22px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+      .metric-value {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 76px;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-top: 10px;
+        letter-spacing: -0.012em;
+        line-height: 1;
+      }
+      .metric-value.accent   { color: var(--heat-hot); }
+      .metric-value.critical { color: var(--heat-critical); }
+      .metric-hint {
+        font-size: 22px;
+        color: var(--text-secondary);
+        margin-top: 8px;
+      }
+      .donut-card {
+        margin-top: 24px;
+        display: flex;
+        align-items: center;
+        gap: 38px;
+      }
+      .donut-text { flex: 1; }
+      .donut-headline {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 38px;
+        font-weight: 500;
+        line-height: 1.2;
+        margin-top: 8px;
+      }
+      .band-legend {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px 20px;
+      }
+      .band-item {
+        display: flex; align-items: center; gap: 12px;
+        font-size: 26px;
+        color: var(--text-primary);
+      }
+      .band-count {
+        margin-left: auto;
+        color: var(--text-secondary);
+      }
+      .donut { width: 260px; height: 260px; flex-shrink: 0; }
+
+      /* ========== Scene 5: Aging ========== */
+      .filter-row { display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+      .filter-pill {
+        font-size: 24px;
+        padding: 12px 22px;
+        border-radius: 999px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+      .filter-pill.active {
+        color: var(--text-primary);
+        border-color: var(--accent);
+        border-width: 2px;
+        font-weight: 600;
+        padding: 11px 21px;
+      }
+      .bucket-list {
+        margin-top: 20px;
+        display: flex; flex-direction: column;
+        gap: 16px;
+      }
+      .bucket {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        padding: 26px 30px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .bucket-left { display: flex; align-items: center; gap: 20px; min-width: 0; }
+      .bucket-dot { width: 20px; height: 20px; border-radius: 999px; flex-shrink: 0; }
+      .bucket-name {
+        font-size: 34px;
+        font-weight: 500;
+      }
+      .bucket-count { font-size: 22px; color: var(--text-secondary); margin-top: 2px; }
+      .bucket-amount {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 42px;
+        font-weight: 500;
+      }
+      .bucket-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+
+      /* ========== Scene 6: Milestones ========== */
+      .progress-row { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
+      .milestone-row {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        padding: 26px 30px;
+        display: flex; flex-direction: column;
+        gap: 14px;
+      }
+      .milestone-addr {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 36px;
+        font-weight: 500;
+        line-height: 1.15;
+      }
+      .milestone-rep {
+        font-size: 23px;
+        color: var(--text-secondary);
+      }
+      .milestone-tags { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+      .ms-tag {
+        font-size: 19px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        padding: 8px 14px;
+        border-radius: 999px;
+      }
+      .ms-tag.done {
+        background: rgba(122, 143, 111, 0.16);
+        color: #3e4d31;
+        border: 1px solid rgba(122, 143, 111, 0.32);
+      }
+      .ms-tag.miss {
+        background: rgba(161, 69, 53, 0.14);
+        color: var(--heat-critical);
+        border: 1px solid rgba(161, 69, 53, 0.32);
+      }
+
+      /* ========== Scene 7: Follow-ups ========== */
+      .followup-list { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
+      .followup-row {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        padding: 26px 30px;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 22px;
+      }
+      .followup-job { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      .followup-addr {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 34px;
+        font-weight: 500;
+        line-height: 1.15;
+      }
+      .followup-meta { font-size: 22px; color: var(--text-secondary); }
+      .heat-meter {
+        display: flex; flex-direction: column; align-items: flex-end;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+      .heat-meter-num {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 56px;
+        font-weight: 600;
+        line-height: 1;
+      }
+      .heat-meter-num.hot      { color: var(--heat-hot); }
+      .heat-meter-num.critical { color: var(--heat-critical); }
+      .heat-meter-num.warm     { color: #806020; }
+      .heat-meter-label {
+        font-size: 17px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 600;
+      }
+
+      /* ========== Scene 8: Reconciliation ========== */
+      .stuck-list { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
+      .stuck-row {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        padding: 26px 30px;
+        display: flex; align-items: center; gap: 22px;
+      }
+      .stuck-row .icon {
+        width: 56px; height: 56px;
+        border-radius: 16px;
+        background: rgba(161, 69, 53, 0.14);
+        color: var(--heat-critical);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 30px; font-weight: 700;
+        flex-shrink: 0;
+      }
+      .stuck-body { flex: 1; min-width: 0; }
+      .stuck-addr {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 34px;
+        font-weight: 500;
+        line-height: 1.15;
+      }
+      .stuck-quiet {
+        font-size: 22px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+      }
+      .stuck-amount {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 38px;
+        font-weight: 500;
+        flex-shrink: 0;
+      }
+
+      /* ========== Scene 9: Rep leaderboard (simplified columns) ========== */
+      .lb-table {
+        margin-top: 18px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 0;
+        overflow: hidden;
+        box-shadow: 0 8px 22px -10px rgba(31, 27, 22, 0.06);
+      }
+      .lb-head, .lb-row {
+        display: grid;
+        grid-template-columns: 60px 1.4fr 1fr;
+        align-items: center;
+        gap: 18px;
+        padding: 22px 30px;
+      }
+      .lb-head {
+        font-size: 20px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--border);
+      }
+      .lb-row {
+        font-size: 30px;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border);
+      }
+      .lb-row:last-child { border-bottom: none; }
+      .lb-rank {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-style: italic;
+        font-size: 34px;
+        color: var(--text-secondary);
+      }
+      .lb-name {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-weight: 500;
+      }
+      .lb-amount {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-weight: 500;
+        text-align: right;
+      }
+
+      /* ========== Scene 10: Write-offs ========== */
+      #s10 .wo-big {
+        margin-top: 18px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 44px 44px;
+        display: flex; flex-direction: column;
+        gap: 12px;
+        box-shadow: 0 10px 28px -10px rgba(31, 27, 22, 0.06);
+      }
+      #s10 .wo-label {
+        font-size: 22px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+      #s10 .wo-value {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 130px;
+        font-weight: 500;
+        color: var(--heat-critical);
+        letter-spacing: -0.012em;
+        line-height: 1;
+        margin-top: 6px;
+      }
+      #s10 .wo-hint {
+        font-size: 24px;
+        color: var(--text-secondary);
+        margin-top: 6px;
+      }
+      #s10 .wo-breakdown {
+        margin-top: 16px;
+        display: flex; flex-direction: column;
+        gap: 12px;
+      }
+      .wo-line {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 20px 26px;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 20px;
+      }
+      .wo-name { font-size: 26px; color: var(--text-primary); flex: 1; min-width: 0; line-height: 1.2; }
+      .wo-amt {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 32px;
+        font-weight: 500;
+        flex-shrink: 0;
+      }
+
+      /* ========== Scene 11: Scheduler ========== */
+      #s11 .tab-row {
+        display: flex; gap: 8px;
+        border-bottom: 1px solid var(--border);
+        margin-top: 6px;
+      }
+      .tab {
+        font-size: 28px; font-weight: 500;
+        color: var(--text-secondary);
+        padding: 16px 24px 18px;
+        border-bottom: 3px solid transparent;
+      }
+      .tab.active {
+        color: var(--text-primary);
+        border-bottom-color: var(--accent);
+        font-weight: 600;
+      }
+      #s11 .cadence-list { margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
+      .cadence-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        padding: 24px 28px;
+        display: flex; align-items: center; gap: 22px;
+      }
+      .cadence-icon {
+        width: 64px; height: 64px;
+        border-radius: 18px;
+        background: rgba(200, 133, 78, 0.16);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 30px; color: #6e3e15; font-weight: 700;
+        flex-shrink: 0;
+      }
+      .cadence-body { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+      .cadence-title {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 32px; font-weight: 500;
+      }
+      .cadence-meta { font-size: 22px; color: var(--text-secondary); line-height: 1.3; }
+      .status-pill {
+        font-size: 18px; letter-spacing: 0.2em;
+        text-transform: uppercase; font-weight: 600;
+        padding: 8px 14px;
+        border-radius: 999px;
+        flex-shrink: 0;
+      }
+      .status-pill.active {
+        background: rgba(122, 143, 111, 0.18);
+        color: #3e4d31;
+        border: 1px solid rgba(122, 143, 111, 0.34);
+      }
+
+      /* ========== Scene 12: Audit logs ========== */
+      #s12 .audit-filters { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+      .audit-filter {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px 20px;
+        display: flex; align-items: center; gap: 12px;
+        color: var(--text-secondary);
+        font-size: 22px;
+      }
+      .audit-filter strong {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      .audit-filter .val { color: var(--text-primary); font-weight: 500; }
+      #s12 .audit-list {
+        margin-top: 18px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        overflow: hidden;
+        box-shadow: 0 8px 22px -10px rgba(31, 27, 22, 0.06);
+      }
+      .audit-row {
+        padding: 22px 28px;
+        border-bottom: 1px solid var(--border);
+        display: flex; flex-direction: column;
+        gap: 6px;
+      }
+      .audit-row:last-child { border-bottom: none; }
+      .audit-top {
+        display: flex; align-items: center; gap: 14px;
+      }
+      .audit-time {
+        font-size: 22px;
+        color: var(--text-secondary);
+      }
+      .audit-cat-pill {
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: var(--bg-subtle);
+        color: var(--text-secondary);
+      }
+      .audit-actor {
+        margin-left: auto;
+        font-size: 22px;
+        color: var(--text-secondary);
+        font-family: 'EB Garamond', Georgia, serif;
+        font-style: italic;
+      }
+      .audit-summary {
+        font-size: 28px;
+        color: var(--text-primary);
+        line-height: 1.25;
+      }
+      .audit-summary strong { font-weight: 600; }
+
+      /* ========== Scene 13: Drafted email ========== */
+      #s13 .email-card {
+        margin-top: 16px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 50px 50px;
+        box-shadow: 0 14px 32px -10px rgba(31, 27, 22, 0.12);
+      }
+      .email-meta {
+        display: flex; flex-direction: column;
+        gap: 8px;
+        padding-bottom: 22px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 26px;
+      }
+      .email-meta-row { font-size: 26px; color: var(--text-secondary); }
+      .email-meta-row strong {
+        color: var(--text-secondary);
+        font-weight: 500;
+        margin-right: 14px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        font-size: 20px;
+      }
+      .email-subject {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 38px;
+        font-weight: 500;
+        margin-top: 8px;
+        line-height: 1.2;
+      }
+      .email-body {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 32px;
+        line-height: 1.45;
+        color: var(--text-primary);
+      }
+      .email-body p { margin-bottom: 16px; }
+      .email-signoff {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-style: italic;
+        font-size: 32px;
+        color: var(--text-secondary);
+        margin-top: 16px;
+      }
+      .email-footer {
+        margin-top: 28px;
+        padding-top: 22px;
+        border-top: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .heat-score {
+        display: flex; align-items: center; gap: 14px;
+        font-size: 24px;
+        color: var(--text-secondary);
+      }
+      .heat-score-num {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-weight: 600;
+        font-size: 34px;
+        color: var(--heat-hot);
+      }
+
+      /* ========== Scene 14: End card ========== */
+      #s14 .scene-content {
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 28px;
+      }
+      #s14 .avatar-circle {
+        width: 280px; height: 280px;
+        border-radius: 999px;
+        overflow: hidden;
+        border: 4px solid var(--bg-card);
+        box-shadow: 0 20px 48px -14px rgba(31, 27, 22, 0.22);
+      }
+      #s14 .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
+      #s14 .wordmark {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-size: 200px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        margin-top: 16px;
+      }
+      #s14 .tagline {
+        font-family: 'EB Garamond', Georgia, serif;
+        font-style: italic;
+        font-size: 50px;
+        color: var(--text-secondary);
+      }
+      #s14 .role {
+        font-size: 26px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin-top: 22px;
+      }
+      #s14 .cta-hint {
+        margin-top: 24px;
+        font-size: 36px;
+        color: var(--accent);
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="62"
+      data-width="1080"
+      data-height="1920"
+    >
+      <!-- 1. Hero -->
+      <div id="s1" class="scene clip" data-start="0" data-duration="5.5" data-track-index="1" style="z-index: 1;">
+        <div class="scene-content">
+          <div class="avatar-card" id="s1-avatar">
+            <img src="vera-avatar.png" alt="Vera Calloway" />
+          </div>
+          <p class="eyebrow" id="s1-eyebrow">
+            <span class="vera-mark"></span>Vera Calloway · AI Intelligence Specialist
+          </p>
+          <h1 class="headline" id="s1-headline">
+            <span class="line" id="s1-l1">I keep an eye</span>
+            <span class="line" id="s1-l2">on the money that</span>
+            <span class="line" id="s1-l3">hasn't come home yet.</span>
+          </h1>
+          <p class="footnote" id="s1-footnote">A quiet companion for the back office.</p>
+        </div>
+      </div>
+
+      <!-- 2. Sign in -->
+      <div id="s2" class="scene clip" data-start="5" data-duration="4.5" data-track-index="2" style="z-index: 2;">
+        <div class="scene-content">
+          <div class="login-card" id="s2-card">
+            <div class="login-avatar" id="s2-avatar"><img src="vera-avatar.png" alt="Vera" /></div>
+            <p class="login-eyebrow" id="s2-eb">Vera Calloway · AI Studio</p>
+            <h2 class="login-title" id="s2-title">Welcome back.</h2>
+            <p class="login-sub" id="s2-sub">
+              Sign in to access today's briefing, your AR pipeline, and the schedule of who Vera follows up with on your behalf.
+            </p>
+            <div class="login-button" id="s2-btn">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.25 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
+                <path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.1V7.07H2.18A11 11 0 0 0 1 12c0 1.78.43 3.46 1.18 4.94l3.66-2.84Z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.07.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38Z" />
+              </svg>
+              <span>Sign in with Google</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Briefing -->
+      <div id="s3" class="scene clip" data-start="9" data-duration="5.5" data-track-index="3" style="z-index: 3;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s3-eb">Daily · 6:00 AM</p>
+          <h2 class="page-title" id="s3-t">Today's briefing</h2>
+          <div class="card" id="s3-card">
+            <div class="briefing-meta" id="s3-meta">
+              <span>Generated 6:00 AM</span><span class="meta-dot"></span>
+              <span>3 sources</span><span class="meta-dot"></span>
+              <span class="model-pill">gpt-4o</span>
+            </div>
+            <p class="briefing-headline" id="s3-h">Three jobs are warmer than I'd like this morning.</p>
+            <div class="briefing-list">
+              <div class="briefing-item" id="s3-i1">
+                <span class="briefing-num">1</span>
+                <span class="briefing-body"><strong>McMackin install</strong> crossed into Hot. <em>47 days outstanding.</em></span>
+                <span class="pill hot">82</span>
+              </div>
+              <div class="briefing-item" id="s3-i2">
+                <span class="briefing-num">2</span>
+                <span class="briefing-body"><strong>Roberts</strong> has two cert-of-completion gaps.</span>
+                <span class="pill warm">64</span>
+              </div>
+              <div class="briefing-item" id="s3-i3">
+                <span class="briefing-num">3</span>
+                <span class="briefing-body"><strong>Pham's commission</strong> hasn't moved in 14 days.</span>
+                <span class="pill critical">91</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Metrics + donut -->
+      <div id="s4" class="scene clip" data-start="14" data-duration="5.5" data-track-index="4" style="z-index: 4;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s4-eb">The shape of the queue</p>
+          <h2 class="page-title" id="s4-t" style="font-size: 80px;">Where the money sits.</h2>
+          <div class="metric-grid">
+            <div class="metric-tile" id="s4-m1">
+              <p class="metric-label">Total AR</p>
+              <p class="metric-value">$3.49M</p>
+              <p class="metric-hint">373 active jobs</p>
+            </div>
+            <div class="metric-tile" id="s4-m2">
+              <p class="metric-label">Critical</p>
+              <p class="metric-value critical">8</p>
+              <p class="metric-hint">Executive review</p>
+            </div>
+            <div class="metric-tile" id="s4-m3">
+              <p class="metric-label">Hot</p>
+              <p class="metric-value accent">21</p>
+              <p class="metric-hint">Vera drafts today</p>
+            </div>
+            <div class="metric-tile" id="s4-m4">
+              <p class="metric-label">Fell through</p>
+              <p class="metric-value">4</p>
+              <p class="metric-hint">3 reps with heat</p>
+            </div>
+          </div>
+          <div class="card donut-card" id="s4-donut-card">
+            <svg class="donut" id="s4-donut" viewBox="0 0 130 130" aria-hidden="true">
+              <circle cx="65" cy="65" r="52" fill="none" stroke="var(--bg-subtle)" stroke-width="20" />
+              <circle cx="65" cy="65" r="52" fill="none" stroke="var(--heat-cool)" stroke-width="20"
+                stroke-dasharray="248 326.7" stroke-dashoffset="0" transform="rotate(-90 65 65)" />
+              <circle cx="65" cy="65" r="52" fill="none" stroke="var(--heat-warm)" stroke-width="20"
+                stroke-dasharray="55 326.7" stroke-dashoffset="-248" transform="rotate(-90 65 65)" />
+              <circle cx="65" cy="65" r="52" fill="none" stroke="var(--heat-hot)" stroke-width="20"
+                stroke-dasharray="19 326.7" stroke-dashoffset="-303" transform="rotate(-90 65 65)" />
+              <circle cx="65" cy="65" r="52" fill="none" stroke="var(--heat-critical)" stroke-width="20"
+                stroke-dasharray="7 326.7" stroke-dashoffset="-322" transform="rotate(-90 65 65)" />
+            </svg>
+            <div class="donut-text">
+              <p class="eyebrow" style="font-size: 22px;">Heat distribution</p>
+              <p class="donut-headline">373 jobs across four bands.</p>
+              <div class="band-legend">
+                <div class="band-item"><span class="dot" style="background: var(--heat-cool);"></span><span>Cool</span><span class="band-count">282</span></div>
+                <div class="band-item"><span class="dot" style="background: var(--heat-warm);"></span><span>Warm</span><span class="band-count">62</span></div>
+                <div class="band-item"><span class="dot" style="background: var(--heat-hot);"></span><span>Hot</span><span class="band-count">21</span></div>
+                <div class="band-item"><span class="dot" style="background: var(--heat-critical);"></span><span>Critical</span><span class="band-count">8</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Aging -->
+      <div id="s5" class="scene clip" data-start="19" data-duration="4.5" data-track-index="5" style="z-index: 5;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s5-eb">Aging</p>
+          <h2 class="page-title" id="s5-t">By bucket, oldest first.</h2>
+          <div class="filter-row" id="s5-f">
+            <span class="filter-pill active">All reps</span>
+            <span class="filter-pill">All regions</span>
+            <span class="filter-pill">Retail + insurance</span>
+          </div>
+          <div class="bucket-list">
+            <div class="bucket" id="s5-b1">
+              <div class="bucket-left">
+                <span class="bucket-dot" style="background: var(--heat-cool);"></span>
+                <div><p class="bucket-name">Within terms</p><p class="bucket-count">214 jobs</p></div>
+              </div>
+              <span class="bucket-amount">$2.15M</span>
+            </div>
+            <div class="bucket" id="s5-b2">
+              <div class="bucket-left">
+                <span class="bucket-dot" style="background: var(--heat-warm);"></span>
+                <div><p class="bucket-name">1 – 30 days</p><p class="bucket-count">98 jobs</p></div>
+              </div>
+              <span class="bucket-amount">$847K</span>
+            </div>
+            <div class="bucket" id="s5-b3">
+              <div class="bucket-left">
+                <span class="bucket-dot" style="background: var(--heat-hot);"></span>
+                <div><p class="bucket-name">31 – 60 days</p><p class="bucket-count">42 jobs</p></div>
+              </div>
+              <span class="bucket-amount">$312K</span>
+            </div>
+            <div class="bucket" id="s5-b4">
+              <div class="bucket-left">
+                <span class="bucket-dot" style="background: var(--heat-critical);"></span>
+                <div><p class="bucket-name">60+ days</p><p class="bucket-count">19 jobs</p></div>
+              </div>
+              <div class="bucket-right">
+                <span class="pill critical" id="s5-pill" style="font-size: 22px; padding: 8px 14px;">Hot</span>
+                <span class="bucket-amount">$186K</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Milestones -->
+      <div id="s6" class="scene clip" data-start="23" data-duration="4.5" data-track-index="6" style="z-index: 6;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s6-eb">Milestones</p>
+          <h2 class="page-title" id="s6-t">Where each install stands.</h2>
+          <p class="page-sub" id="s6-sub">Cert · final check · commission — whichever is missing is the leak.</p>
+          <div class="progress-row">
+            <div class="milestone-row" id="s6-r1">
+              <div>
+                <p class="milestone-addr">412 Hawthorne · McMackin</p>
+                <p class="milestone-rep">Mike Ahrend · Insurance · $24,180</p>
+              </div>
+              <div class="milestone-tags">
+                <span class="ms-tag done">Cert ✓</span>
+                <span class="ms-tag miss">No final check</span>
+                <span class="ms-tag miss">No commission</span>
+              </div>
+            </div>
+            <div class="milestone-row" id="s6-r2">
+              <div>
+                <p class="milestone-addr">88 Linden · Roberts</p>
+                <p class="milestone-rep">Brandon Roberts · Retail · $16,420</p>
+              </div>
+              <div class="milestone-tags">
+                <span class="ms-tag miss">No cert</span>
+                <span class="ms-tag done">Final check ✓</span>
+                <span class="ms-tag done">Commission ✓</span>
+              </div>
+            </div>
+            <div class="milestone-row" id="s6-r3">
+              <div>
+                <p class="milestone-addr">2310 Ridgemoor · Pham</p>
+                <p class="milestone-rep">Justin Pham · Insurance · $31,950</p>
+              </div>
+              <div class="milestone-tags">
+                <span class="ms-tag done">Cert ✓</span>
+                <span class="ms-tag done">Final check ✓</span>
+                <span class="ms-tag miss">No commission</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. Follow-ups -->
+      <div id="s7" class="scene clip" data-start="27" data-duration="4.5" data-track-index="7" style="z-index: 7;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s7-eb">Follow-ups</p>
+          <h2 class="page-title" id="s7-t">Who I'd nudge today.</h2>
+          <p class="page-sub" id="s7-sub">21 hot jobs. Nothing autosends — open any row.</p>
+          <div class="followup-list">
+            <div class="followup-row" id="s7-r1">
+              <div class="followup-job">
+                <p class="followup-addr">McMackin · Hawthorne</p>
+                <p class="followup-meta">Ahrend · 47d · $24,180</p>
+              </div>
+              <div class="heat-meter">
+                <span class="heat-meter-num critical">91</span>
+                <span class="heat-meter-label">Critical</span>
+              </div>
+            </div>
+            <div class="followup-row" id="s7-r2">
+              <div class="followup-job">
+                <p class="followup-addr">Roberts · Linden</p>
+                <p class="followup-meta">Roberts · 38d · $16,420</p>
+              </div>
+              <div class="heat-meter">
+                <span class="heat-meter-num hot">82</span>
+                <span class="heat-meter-label">Hot</span>
+              </div>
+            </div>
+            <div class="followup-row" id="s7-r3">
+              <div class="followup-job">
+                <p class="followup-addr">Pham · Ridgemoor</p>
+                <p class="followup-meta">Pham · 29d · $31,950</p>
+              </div>
+              <div class="heat-meter">
+                <span class="heat-meter-num warm">64</span>
+                <span class="heat-meter-label">Warm</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Reconciliation -->
+      <div id="s8" class="scene clip" data-start="31" data-duration="4.5" data-track-index="8" style="z-index: 8;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s8-eb">Weekly sweep</p>
+          <h2 class="page-title" id="s8-t">Fell through the cracks.</h2>
+          <p class="page-sub" id="s8-sub">Installed, paid in part, then quiet — the jobs that leak revenue.</p>
+          <div class="stuck-list">
+            <div class="stuck-row" id="s8-r1">
+              <div class="icon">!</div>
+              <div class="stuck-body">
+                <p class="stuck-addr">744 Bridgewood · Ngo</p>
+                <p class="stuck-quiet">84 days · no commission</p>
+              </div>
+              <span class="stuck-amount">$18.4K</span>
+            </div>
+            <div class="stuck-row" id="s8-r2">
+              <div class="icon">!</div>
+              <div class="stuck-body">
+                <p class="stuck-addr">119 Glen Echo · Hardesty</p>
+                <p class="stuck-quiet">71 days · no cert</p>
+              </div>
+              <span class="stuck-amount">$9.8K</span>
+            </div>
+            <div class="stuck-row" id="s8-r3">
+              <div class="icon">!</div>
+              <div class="stuck-body">
+                <p class="stuck-addr">2200 Cedar Pointe · Aronson</p>
+                <p class="stuck-quiet">96 days · no commission</p>
+              </div>
+              <span class="stuck-amount">$12.6K</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. Rep leaderboard -->
+      <div id="s9" class="scene clip" data-start="35" data-duration="4.5" data-track-index="9" style="z-index: 9;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s9-eb">Weekly · sortable</p>
+          <h2 class="page-title" id="s9-t">Money by rep.</h2>
+          <div class="lb-table">
+            <div class="lb-head">
+              <span>#</span><span>Rep</span><span style="text-align: right;">Outstanding</span>
+            </div>
+            <div class="lb-row" id="s9-r1">
+              <span class="lb-rank">1</span><span class="lb-name">Mike Ahrend</span><span class="lb-amount">$642K</span>
+            </div>
+            <div class="lb-row" id="s9-r2">
+              <span class="lb-rank">2</span><span class="lb-name">Justin Pham</span><span class="lb-amount">$498K</span>
+            </div>
+            <div class="lb-row" id="s9-r3">
+              <span class="lb-rank">3</span><span class="lb-name">Brandon Roberts</span><span class="lb-amount">$416K</span>
+            </div>
+            <div class="lb-row" id="s9-r4">
+              <span class="lb-rank">4</span><span class="lb-name">Sarah Hellinger</span><span class="lb-amount">$312K</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 10. Write-offs -->
+      <div id="s10" class="scene clip" data-start="39" data-duration="4.5" data-track-index="10" style="z-index: 10;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s10-eb">Reference</p>
+          <h2 class="page-title" id="s10-t" style="font-size: 80px;">Where the money walked away.</h2>
+          <div class="wo-big" id="s10-big">
+            <p class="wo-label">Total written off</p>
+            <p class="wo-value">$2.26M</p>
+            <p class="wo-hint">373 jobs · Amount Withheld at estimate time</p>
+          </div>
+          <div class="wo-breakdown">
+            <div class="wo-line" id="s10-l1">
+              <span class="wo-name">Insurance · depreciation</span>
+              <span class="wo-amt">$1.42M</span>
+            </div>
+            <div class="wo-line" id="s10-l2">
+              <span class="wo-name">Retail · estimate discounts</span>
+              <span class="wo-amt">$613K</span>
+            </div>
+            <div class="wo-line" id="s10-l3">
+              <span class="wo-name">Other · concessions</span>
+              <span class="wo-amt">$229K</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 11. Scheduler -->
+      <div id="s11" class="scene clip" data-start="43" data-duration="5.5" data-track-index="11" style="z-index: 11;">
+        <div class="scene-content" style="gap: 18px; padding-top: 80px; padding-bottom: 80px; justify-content: flex-start;">
+          <p class="eyebrow" id="s11-eb">Scheduler</p>
+          <h2 class="page-title" id="s11-t" style="font-size: 76px;">Reports, and where the data comes from.</h2>
+          <div class="tab-row" id="s11-tabs">
+            <span class="tab active">Reports</span>
+            <span class="tab active">Data sync</span>
+          </div>
+          <div class="cadence-list">
+            <div class="cadence-card" id="s11-c1">
+              <div class="cadence-icon">☀</div>
+              <div class="cadence-body">
+                <p class="cadence-title">Daily AR brief</p>
+                <p class="cadence-meta">6:00 AM weekdays · operations@</p>
+              </div>
+              <span class="status-pill active">Active</span>
+            </div>
+            <div class="cadence-card" id="s11-c2">
+              <div class="cadence-icon">★</div>
+              <div class="cadence-body">
+                <p class="cadence-title">Weekly leaderboard</p>
+                <p class="cadence-meta">Mondays 8 AM · leadership@</p>
+              </div>
+              <span class="status-pill active">Active</span>
+            </div>
+          </div>
+          <p class="eyebrow" id="s11-sync-eb" style="margin-top: 14px;">Data sync · Rooflink</p>
+          <div class="cadence-list">
+            <div class="cadence-card" id="s11-d1">
+              <div class="cadence-icon">⟳</div>
+              <div class="cadence-body">
+                <p class="cadence-title">Rooflink · jobs</p>
+                <p class="cadence-meta">Daily 3:00 AM · 1,284 rows · 14 min ago</p>
+              </div>
+              <span class="status-pill active">Active</span>
+            </div>
+            <div class="cadence-card" id="s11-d2">
+              <div class="cadence-icon">⟳</div>
+              <div class="cadence-body">
+                <p class="cadence-title">Rooflink · line items</p>
+                <p class="cadence-meta">Daily 3:30 AM · 4,612 rows · 8 min ago</p>
+              </div>
+              <span class="status-pill active">Active</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 12. Audit logs -->
+      <div id="s12" class="scene clip" data-start="48" data-duration="4.5" data-track-index="12" style="z-index: 12;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s12-eb">Audit</p>
+          <h2 class="page-title" id="s12-t">Every action, recorded.</h2>
+          <div class="audit-filters" id="s12-filters">
+            <span class="audit-filter"><strong>Who</strong><span class="val">All</span></span>
+            <span class="audit-filter"><strong>Category</strong><span class="val">All</span></span>
+            <span class="audit-filter"><strong>Range</strong><span class="val">24h</span></span>
+          </div>
+          <div class="audit-list">
+            <div class="audit-row" id="s12-r1">
+              <div class="audit-top">
+                <span class="audit-time">6:00 AM</span>
+                <span class="audit-cat-pill">Briefing</span>
+                <span class="audit-actor">Vera</span>
+              </div>
+              <p class="audit-summary">Daily briefing generated — <strong>3 hot, 1 critical</strong></p>
+            </div>
+            <div class="audit-row" id="s12-r2">
+              <div class="audit-top">
+                <span class="audit-time">6:12 AM</span>
+                <span class="audit-cat-pill">Email</span>
+                <span class="audit-actor">operations</span>
+              </div>
+              <p class="audit-summary">Follow-up sent to <strong>mike.ahrend@priorityroofs.com</strong></p>
+            </div>
+            <div class="audit-row" id="s12-r3">
+              <div class="audit-top">
+                <span class="audit-time">7:40 AM</span>
+                <span class="audit-cat-pill">Schedule</span>
+                <span class="audit-actor">aditya</span>
+              </div>
+              <p class="audit-summary">Reconciliation sweep <strong>paused</strong></p>
+            </div>
+            <div class="audit-row" id="s12-r4">
+              <div class="audit-top">
+                <span class="audit-time">8:18 AM</span>
+                <span class="audit-cat-pill">Chat</span>
+                <span class="audit-actor">aditya</span>
+              </div>
+              <p class="audit-summary">Asked: <strong>"Who's worst this week?"</strong></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 13. Drafted email -->
+      <div id="s13" class="scene clip" data-start="52" data-duration="5.5" data-track-index="13" style="z-index: 13;">
+        <div class="scene-content">
+          <p class="eyebrow" id="s13-eb">Drafted, not sent</p>
+          <h2 class="page-title" id="s13-t" style="font-size: 76px;">I draft the follow-up before you ask.</h2>
+          <div class="email-card" id="s13-card">
+            <div class="email-meta">
+              <p class="email-meta-row"><strong>To</strong>mike.ahrend@priorityroofs.com</p>
+              <p class="email-subject">Quick check on the McMackin install</p>
+            </div>
+            <div class="email-body">
+              <p>Hi Mike — the McMackin install closed forty-seven days ago and we're still missing the final check.</p>
+              <p>Mind nudging the homeowner this week? Happy to draft the call notes if it helps.</p>
+              <p class="email-signoff">— Vera</p>
+            </div>
+            <div class="email-footer">
+              <div class="heat-score">
+                <span>Heat</span>
+                <span class="heat-score-num">82</span>
+                <span>· Hot</span>
+              </div>
+              <span class="pill muted" style="font-size: 20px;">Draft</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 14. End card -->
+      <div id="s14" class="scene clip" data-start="57" data-duration="5" data-track-index="14" style="z-index: 14;">
+        <div class="scene-content">
+          <div class="avatar-circle" id="s14-avatar">
+            <img src="vera-avatar.png" alt="Vera Calloway" />
+          </div>
+          <h1 class="wordmark" id="s14-w">Vera</h1>
+          <p class="tagline" id="s14-tag">Trust before autonomy.</p>
+          <p class="role" id="s14-role">AI Intelligence Specialist</p>
+          <p class="cta-hint" id="s14-cta">Open the dashboard →</p>
+        </div>
+      </div>
+
+      <!-- Per-scene narration (Kokoro af_heart) — tracks 20-33 -->
+      <audio id="a01" class="clip" src="narration/s01.wav" data-start="0"  data-duration="3.7" data-track-index="20" data-volume="1"></audio>
+      <audio id="a02" class="clip" src="narration/s02.wav" data-start="5"  data-duration="2.4" data-track-index="21" data-volume="1"></audio>
+      <audio id="a03" class="clip" src="narration/s03.wav" data-start="9"  data-duration="4.3" data-track-index="22" data-volume="1"></audio>
+      <audio id="a04" class="clip" src="narration/s04.wav" data-start="14" data-duration="4.2" data-track-index="23" data-volume="1"></audio>
+      <audio id="a05" class="clip" src="narration/s05.wav" data-start="19" data-duration="4.1" data-track-index="24" data-volume="1"></audio>
+      <audio id="a06" class="clip" src="narration/s06.wav" data-start="23" data-duration="4.1" data-track-index="25" data-volume="1"></audio>
+      <audio id="a07" class="clip" src="narration/s07.wav" data-start="27" data-duration="4.0" data-track-index="26" data-volume="1"></audio>
+      <audio id="a08" class="clip" src="narration/s08.wav" data-start="31" data-duration="3.5" data-track-index="27" data-volume="1"></audio>
+      <audio id="a09" class="clip" src="narration/s09.wav" data-start="35" data-duration="4.1" data-track-index="28" data-volume="1"></audio>
+      <audio id="a10" class="clip" src="narration/s10.wav" data-start="39" data-duration="4.2" data-track-index="29" data-volume="1"></audio>
+      <audio id="a11" class="clip" src="narration/s11.wav" data-start="43" data-duration="4.7" data-track-index="30" data-volume="1"></audio>
+      <audio id="a12" class="clip" src="narration/s12.wav" data-start="48" data-duration="3.8" data-track-index="31" data-volume="1"></audio>
+      <audio id="a13" class="clip" src="narration/s13.wav" data-start="52" data-duration="4.2" data-track-index="32" data-volume="1"></audio>
+      <audio id="a14" class="clip" src="narration/s14.wav" data-start="57" data-duration="4.9" data-track-index="33" data-volume="1"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      function se(id, t) { tl.from(`#${id}`, { opacity: 0, duration: 0.5, ease: 'power2.out' }, t); }
+
+      // 1. Hero
+      se('s1', 0);
+      tl.from('#s1-avatar', { y: -30, opacity: 0, duration: 0.85, ease: 'expo.out' }, 0.3);
+      tl.from('#s1-eyebrow', { y: 16, opacity: 0, duration: 0.55, ease: 'power3.out' }, 0.85);
+      tl.from('#s1-l1', { y: 30, opacity: 0, duration: 0.65, ease: 'power3.out' }, 1.05);
+      tl.from('#s1-l2', { y: 30, opacity: 0, duration: 0.65, ease: 'power3.out' }, 1.22);
+      tl.from('#s1-l3', { y: 30, opacity: 0, duration: 0.65, ease: 'power3.out' }, 1.39);
+      tl.from('#s1-footnote', { y: 14, opacity: 0, duration: 0.5, ease: 'power2.out' }, 1.9);
+
+      // 2. Sign in
+      se('s2', 5);
+      tl.from('#s2-card', { y: 24, opacity: 0, duration: 0.7, ease: 'power3.out' }, 5.2);
+      tl.from('#s2-avatar', { scale: 0.7, opacity: 0, duration: 0.55, ease: 'back.out(1.6)' }, 5.55);
+      tl.from('#s2-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 5.85);
+      tl.from('#s2-title', { y: 18, opacity: 0, duration: 0.55, ease: 'power3.out' }, 6.0);
+      tl.from('#s2-sub', { y: 12, opacity: 0, duration: 0.5, ease: 'power2.out' }, 6.25);
+      tl.from('#s2-btn', { y: 14, opacity: 0, duration: 0.55, ease: 'expo.out' }, 6.5);
+
+      // 3. Briefing
+      se('s3', 9);
+      tl.from('#s3-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 9.3);
+      tl.from('#s3-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 9.42);
+      tl.from('#s3-card', { y: 28, opacity: 0, duration: 0.6, ease: 'power3.out' }, 9.75);
+      tl.from('#s3-meta', { opacity: 0, duration: 0.4, ease: 'power2.out' }, 10.0);
+      tl.from('#s3-h', { y: 14, opacity: 0, duration: 0.5, ease: 'power3.out' }, 10.15);
+      tl.from('#s3-i1', { x: -20, opacity: 0, duration: 0.45, ease: 'power3.out' }, 10.5);
+      tl.from('#s3-i2', { x: -20, opacity: 0, duration: 0.45, ease: 'power3.out' }, 10.65);
+      tl.from('#s3-i3', { x: -20, opacity: 0, duration: 0.45, ease: 'power3.out' }, 10.8);
+
+      // 4. Metrics + donut
+      se('s4', 14);
+      tl.from('#s4-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 14.3);
+      tl.from('#s4-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 14.42);
+      tl.from('#s4-m1', { y: 20, opacity: 0, duration: 0.45, ease: 'power3.out' }, 14.85);
+      tl.from('#s4-m2', { y: 20, opacity: 0, duration: 0.45, ease: 'power3.out' }, 14.95);
+      tl.from('#s4-m3', { y: 20, opacity: 0, duration: 0.45, ease: 'power3.out' }, 15.05);
+      tl.from('#s4-m4', { y: 20, opacity: 0, duration: 0.45, ease: 'power3.out' }, 15.15);
+      tl.from('#s4-donut-card', { y: 22, opacity: 0, duration: 0.55, ease: 'power3.out' }, 15.5);
+      tl.from('#s4-donut', { rotation: -30, opacity: 0, duration: 0.8, transformOrigin: 'center', ease: 'expo.out' }, 15.65);
+
+      // 5. Aging
+      se('s5', 19);
+      tl.from('#s5-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 19.3);
+      tl.from('#s5-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 19.42);
+      tl.from('#s5-f', { y: 12, opacity: 0, duration: 0.4, ease: 'power3.out' }, 19.75);
+      tl.from('#s5-b1', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 19.95);
+      tl.from('#s5-b2', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 20.05);
+      tl.from('#s5-b3', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 20.15);
+      tl.from('#s5-b4', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 20.25);
+      tl.from('#s5-pill', { scale: 0.7, opacity: 0, duration: 0.4, ease: 'back.out(1.8)' }, 21.1);
+
+      // 6. Milestones
+      se('s6', 23);
+      tl.from('#s6-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 23.3);
+      tl.from('#s6-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 23.42);
+      tl.from('#s6-sub', { y: 12, opacity: 0, duration: 0.45, ease: 'power2.out' }, 23.75);
+      tl.from('#s6-r1', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 24.0);
+      tl.from('#s6-r2', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 24.12);
+      tl.from('#s6-r3', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 24.24);
+
+      // 7. Follow-ups
+      se('s7', 27);
+      tl.from('#s7-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 27.3);
+      tl.from('#s7-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 27.42);
+      tl.from('#s7-sub', { y: 12, opacity: 0, duration: 0.45, ease: 'power2.out' }, 27.75);
+      tl.from('#s7-r1', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 28.0);
+      tl.from('#s7-r2', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 28.12);
+      tl.from('#s7-r3', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 28.24);
+
+      // 8. Reconciliation
+      se('s8', 31);
+      tl.from('#s8-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 31.3);
+      tl.from('#s8-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 31.42);
+      tl.from('#s8-sub', { y: 12, opacity: 0, duration: 0.45, ease: 'power2.out' }, 31.75);
+      tl.from('#s8-r1', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 32.0);
+      tl.from('#s8-r2', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 32.12);
+      tl.from('#s8-r3', { y: 18, opacity: 0, duration: 0.45, ease: 'power3.out' }, 32.24);
+
+      // 9. Rep leaderboard
+      se('s9', 35);
+      tl.from('#s9-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 35.3);
+      tl.from('#s9-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 35.42);
+      tl.from('#s9-r1', { x: -16, opacity: 0, duration: 0.4, ease: 'power3.out' }, 35.85);
+      tl.from('#s9-r2', { x: -16, opacity: 0, duration: 0.4, ease: 'power3.out' }, 35.95);
+      tl.from('#s9-r3', { x: -16, opacity: 0, duration: 0.4, ease: 'power3.out' }, 36.05);
+      tl.from('#s9-r4', { x: -16, opacity: 0, duration: 0.4, ease: 'power3.out' }, 36.15);
+
+      // 10. Write-offs
+      se('s10', 39);
+      tl.from('#s10-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 39.3);
+      tl.from('#s10-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 39.42);
+      tl.from('#s10-big', { y: 20, opacity: 0, duration: 0.55, ease: 'power3.out' }, 39.8);
+      tl.from('#s10-l1', { x: -14, opacity: 0, duration: 0.4, ease: 'power3.out' }, 40.25);
+      tl.from('#s10-l2', { x: -14, opacity: 0, duration: 0.4, ease: 'power3.out' }, 40.35);
+      tl.from('#s10-l3', { x: -14, opacity: 0, duration: 0.4, ease: 'power3.out' }, 40.45);
+
+      // 11. Scheduler
+      se('s11', 43);
+      tl.from('#s11-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 43.3);
+      tl.from('#s11-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 43.42);
+      tl.from('#s11-tabs', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 43.75);
+      tl.from('#s11-c1', { y: 16, opacity: 0, duration: 0.45, ease: 'power3.out' }, 43.95);
+      tl.from('#s11-c2', { y: 16, opacity: 0, duration: 0.45, ease: 'power3.out' }, 44.07);
+      tl.from('#s11-sync-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 44.6);
+      tl.from('#s11-d1', { y: 16, opacity: 0, duration: 0.45, ease: 'power3.out' }, 44.8);
+      tl.from('#s11-d2', { y: 16, opacity: 0, duration: 0.45, ease: 'power3.out' }, 44.92);
+
+      // 12. Audit logs
+      se('s12', 48);
+      tl.from('#s12-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 48.3);
+      tl.from('#s12-t', { y: 22, opacity: 0, duration: 0.55, ease: 'expo.out' }, 48.42);
+      tl.from('#s12-filters', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 48.75);
+      tl.from('#s12-r1', { x: -16, opacity: 0, duration: 0.4, ease: 'power3.out' }, 48.95);
+      tl.from('#s12-r2', { x: -16, opacity: 0, duration: 0.4, ease: 'power3.out' }, 49.05);
+      tl.from('#s12-r3', { x: -16, opacity: 0, duration: 0.4, ease: 'power3.out' }, 49.15);
+      tl.from('#s12-r4', { x: -16, opacity: 0, duration: 0.4, ease: 'power3.out' }, 49.25);
+
+      // 13. Email
+      se('s13', 52);
+      tl.from('#s13-eb', { y: 10, opacity: 0, duration: 0.4, ease: 'power2.out' }, 52.3);
+      tl.from('#s13-t', { y: 22, opacity: 0, duration: 0.6, ease: 'expo.out' }, 52.42);
+      tl.from('#s13-card', { y: 30, opacity: 0, duration: 0.7, ease: 'power3.out' }, 52.85);
+
+      // 14. End card
+      se('s14', 57);
+      tl.from('#s14-avatar', { scale: 0.7, opacity: 0, duration: 0.7, ease: 'back.out(1.5)' }, 57.3);
+      tl.from('#s14-w', { y: 22, opacity: 0, duration: 0.6, ease: 'power3.out' }, 57.7);
+      tl.from('#s14-tag', { y: 14, opacity: 0, duration: 0.5, ease: 'power2.out' }, 57.95);
+      tl.from('#s14-role', { y: 10, opacity: 0, duration: 0.45, ease: 'power2.out' }, 58.2);
+      tl.from('#s14-cta', { y: 10, opacity: 0, duration: 0.45, ease: 'power2.out' }, 58.45);
+
+      window.__timelines['main'] = tl;
+    </script>
+  </body>
+</html>
