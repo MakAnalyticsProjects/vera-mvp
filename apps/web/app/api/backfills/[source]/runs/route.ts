@@ -57,16 +57,34 @@ export async function POST(req: Request, ctx: RouteContext) {
       );
     }
 
-    // Decide mode: full unless the schedule has a watermark AND the caller
-    // didn't force a full re-sync via `?mode=full`. The override is the
-    // "Run as full sync" affordance in the UI — used for occasional schema /
-    // deletion refresh.
+    // Decide mode. The watermark is the `startedAt` of the most recent
+    // successfully completed run for this (tenant, source) — derived from
+    // BackfillRun directly so Run-now works even when no BackfillSchedule
+    // row exists (the common case before a cron is configured). The schedule's
+    // `lastSyncedAt` is a denormalized cache the dispatcher uses; we don't
+    // depend on it here. `?mode=full` forces a full re-sync (the "Run as
+    // full sync" UI affordance, used for periodic schema/deletion refresh).
     const url = new URL(req.url);
     const forceFull = url.searchParams.get('mode') === 'full';
+
+    let watermark: Date | null = null;
+    if (!forceFull) {
+      const lastCompleted = await db.backfillRun.findFirst({
+        where: {
+          tenantId,
+          source,
+          status: 'completed',
+          startedAt: { not: null },
+        },
+        orderBy: { startedAt: 'desc' },
+        select: { startedAt: true },
+      });
+      watermark = lastCompleted?.startedAt ?? null;
+    }
+
     const schedule = await db.backfillSchedule.findUnique({
       where: { tenantId_source: { tenantId, source } },
     });
-    const watermark = forceFull ? null : schedule?.lastSyncedAt ?? null;
     const mode: 'full' | 'incremental' = watermark ? 'incremental' : 'full';
 
     const run = await db.backfillRun.create({
