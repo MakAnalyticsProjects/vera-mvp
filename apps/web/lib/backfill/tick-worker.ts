@@ -435,6 +435,31 @@ async function promote(
   mode: string,
 ): Promise<void> {
   if (mode === 'incremental') {
+    // Empty-incremental short-circuit: if this incremental run wrote zero
+    // rows, there's nothing to promote. Skipping the promote also skips
+    // the REFRESH MATERIALIZED VIEW (~3s) and the success notification,
+    // which would otherwise fire for every quiet sync (≈ every few
+    // minutes in prod). The run still completes cleanly.
+    const probe = await db.backfillRun.findUnique({
+      where: { id: runId },
+      select: { itemsProcessed: true },
+    });
+    if (probe && probe.itemsProcessed === 0) {
+      await db.backfillRun.update({
+        where: { id: runId },
+        data: {
+          status: 'completed',
+          finishedAt: new Date(),
+          claimedAt: null,
+          // promoted: false (default) — explicitly NOT promoting.
+        },
+      });
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[backfill] run #${runId} (${source}) completed with 0 new rows — skipping promote/refresh/notify`,
+      );
+      return;
+    }
     await db.backfillRun.update({
       where: { id: runId },
       data: {
@@ -465,6 +490,28 @@ async function promote(
         },
       }),
     ]);
+  }
+
+  // Refresh the LiveJob materialized view if this was a rooflink_jobs promote.
+  // Reads of the AR / write-offs paths now go through LiveJob (see
+  // merge-view.ts), so the view has to reflect the freshly-promoted rows
+  // before we bust the application caches.
+  //
+  // CONCURRENTLY keeps the view readable during the refresh (no exclusive
+  // lock). Requires the unique index defined in the migration. It costs
+  // roughly the same as the old DISTINCT ON query (~1s on 100k rows) but
+  // happens here, not on a user-facing request.
+  if (source === 'rooflink_jobs') {
+    try {
+      await db.$executeRawUnsafe(`REFRESH MATERIALIZED VIEW CONCURRENTLY "LiveJob"`);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[backfill] LiveJob refresh failed after run #${runId}: ${e instanceof Error ? e.message : e}`,
+      );
+      // Don't fail the promote — the next refresh will catch up. The read
+      // path also falls back to RawRooflinkJob if LiveJob is empty.
+    }
   }
 
   // Bust the in-process snapshot caches so the next dashboard request

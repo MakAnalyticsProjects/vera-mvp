@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-05-14 (multi-recipient + audited follow-up send)
+> Last updated: 2026-05-15 (narrated demo video — deployed)
 
 ---
 
@@ -96,6 +96,76 @@ drops of the three tables in reverse FK order:
 `PendingRuleSend` → `RuleEvaluationState` → `AutomationRule`. No data
 loss outside the rule-related rows themselves (SendLog rows produced by
 approved sends are preserved).
+
+---
+
+### 2026-05-15 — Narrated demo video on the landing page
+
+**Deployed.** Merge commit `2c7b976` on `main` (PR [#21](https://github.com/adityauphade-mac/vera-mvp/pull/21)). Vercel deployment `dpl_2c1snwAT29QxkfZAtHCjGZz6EWtC`. Verified live on <https://vera-mvp.vercel.app>: both `<video>` elements in DOM, MP4s + posters serve `200 OK` with correct content-types (`video/mp4`, `image/jpeg`).
+
+A 62-second autoplaying demo video now sits in the landing-page hero, between the Vera headline + CTA buttons and the "What I do, every morning" feature cards. Two renders behind the Tailwind `md:` breakpoint — landscape (1920×1080) for tablet/desktop, portrait (1080×1920) for mobile — walking through fourteen scenes that mirror Vera's real surfaces: sign-in, the morning briefing, heat distribution across active jobs, aging, milestones, follow-ups, reconciliation, the rep leaderboard, write-offs, scheduler cadence, audit log, and a drafted follow-up email. Closes on the brand mark with "Hours back. Leaks closed."
+
+Narration is `af_heart` (Kokoro TTS, generated locally — no API key, no per-request cost), split into fourteen per-scene `<audio>` clips on tracks 20–33 of each composition so speech stays aligned to visuals across renders. The video plays muted-autoplay on load (every modern browser blocks audio autoplay without a user gesture); a floating "Tap to unmute" button in [`apps/web/app/_components/DemoVideo.tsx`](../apps/web/app/_components/DemoVideo.tsx) unmutes only the visible cut and seeks to `t=0` so the visitor hears the narration from the top rather than mid-sentence. The hidden cut stays paused so its audio pipeline never doubles up with the active video.
+
+Composition sources live under [`hyperframes/landing-demo/`](../hyperframes/landing-demo/) (landscape) and [`hyperframes/landing-demo-mobile/`](../hyperframes/landing-demo-mobile/) (portrait). Re-render either with `npx hyperframes render` in the respective directory. Narration WAVs are checked in under `narration/s01.wav` … `s14.wav`; `narration/batch_synth.py` regenerates them from `narration/lines.txt` if the script changes.
+
+**Rollback:** revert the merge commit and re-run `vercel --prod --yes` from the canonical repo, or `vercel rollback` to the previous production deployment. No DB migrations, no env-var changes, no API surface change — frontend asset addition only (~12 MB total across both MP4s + posters in `apps/web/public/`).
+
+---
+
+### 2026-05-15 — `LiveJob` materialized view
+
+**Deployed.** Merge commit `25ee43e` on `main` (PR [#20](https://github.com/adityauphade-mac/vera-mvp/pull/20)). Vercel deployment `dpl_BMcGTRVESZMy96Jy4kuF3BEM8BXE`. Migration `20260515000000_add_livejob_materialized_view` applied to `vera_prod` before code deploy. Empty-promoted-incrementals cleanup SQL ran post-deploy (demoted 5 stale runs).
+
+Dashboard read path moved from `SELECT DISTINCT ON ... FROM RawRooflinkJob` (parsing JSONB on every request) to a Postgres materialized view (`LiveJob`) with the AR/write-offs filter fields and the duplicate-address count extracted as proper indexed columns. The user-visible effect is **faster pages**, especially right after a backfill sync:
+
+- AR endpoints (`/api/jobs/aging` and four siblings): post-promote cache miss dropped from ~900 ms to ~30 ms (~30× faster).
+- Write-offs (`/dashboard/write-offs`): post-promote cache miss dropped from ~1100 ms to ~340 ms (~3× faster).
+- Raw query time fell from ~1200 ms to ~1 ms (measured with EXPLAIN ANALYZE on `vera_dev`).
+
+Cost moved (not added): `REFRESH MATERIALIZED VIEW CONCURRENTLY "LiveJob"` runs inside `tick-worker.promote()` after each non-empty `rooflink_jobs` promote. Takes ~3 s on 100 k rows but runs on the backfill worker, off the user-facing request path. CONCURRENTLY keeps the view readable during the refresh.
+
+**Also in this change:** the empty-incremental short-circuit (Fix 4). An incremental sync that finds zero new rows now completes without promoting — no refresh, no cache bust, no notification email. Existing `vera_prod` data may have a backlog of empty promoted runs; demote them with the one-shot SQL below.
+
+**Files:**
+- `apps/web/prisma/migrations/20260515000000_add_livejob_materialized_view/migration.sql` — view + indexes
+- `apps/web/lib/backfill/merge-view.ts` — read helpers rewritten to read from `LiveJob`
+- `apps/web/lib/backfill/tick-worker.ts` — REFRESH call + empty-incremental short-circuit
+- `DASHBOARD_DATA_FETCH_REVIEW.md`, `MULTI_RECIPIENT_CODE_REVIEW.md` — review writeups (not deployed, kept in repo for context)
+
+**Verification done in dev:**
+- OLD vs NEW row-by-row diff: zero discrepancies across `dedup`, `data_version`, `ar_membership`, `addressDupCount`, and `writeoffs` checks. Script at `/tmp/verify-livejob.sql` (also reproducible against prod by adapting the connection).
+- `/api/jobs/aging` returns 127 jobs / $1,236,826.70 / 26 duplicate-address anomalies — identical to the old code path.
+- Typecheck (`tsc --noEmit`) clean.
+- All `/dashboard/*` pages return 200.
+- **End-to-end backfill flow tested.** Simulated a complete backfill cycle: created a new `BackfillRun`, wrote a modified `RawRooflinkJob` row for an existing AR job (bumped balance from $52,155.79 → $99,999.99), marked the run `promoted=true`, ran `REFRESH MATERIALIZED VIEW CONCURRENTLY "LiveJob"`, and hit `/api/jobs/aging`. Result: `totalBalance` reflected the new value (delta exactly $47,844.20), job 296667 in the response carried the new balance, totalCount remained 127. New data flows end-to-end exactly as expected. Cleanup verified: after deleting the synthetic row and run + refresh, baseline restored to 127 jobs / $1,236,826.70.
+- Bug found and fixed during verification: `excludeFromQb` was defined as `(payload->>'exclude_from_qb') = 'true'`, which returns NULL for missing fields. The defensive old logic treated missing-field rows as "not excluded" (include in AR). Fixed to `COALESCE(... = 'true', false)` so missing fields → false → row included. Without this, prod rows with missing `exclude_from_qb` would have been silently dropped from the dashboard.
+
+**Production verification — results from the actual 2026-05-15 deploy:**
+
+| Number | Pre-deploy (OLD JSONB read) | Post-deploy (LiveJob view) | Match? |
+|---|---|---|---|
+| Deduped jobs | 103,440 | 103,440 | ✅ |
+| AR-eligible | 130 | 130 | ✅ |
+| AR total balance | $1,278,629.33 | $1,278,629.33 | ✅ |
+| Duplicate-address keys | 4,545 | 4,545 | ✅ |
+| Rows in dup-address sets | 9,720 | 9,720 | ✅ |
+
+`scripts/verify-livejob.sql` returned zero discrepancies across all 14 checks on vera_prod. Cleanup SQL demoted 5 existing empty-promoted incrementals. First post-deploy REFRESH cycle: 12 s. Public + protected dashboard routes responded as expected (200 for public, 307 redirect to /login for protected — auth middleware functioning correctly).
+
+**What to watch in the first 24 h:**
+- Backfill worker logs. If `[backfill] LiveJob refresh failed` ever appears, the cache will be stale until the next successful refresh — investigate immediately.
+- Audit log for the next promote — confirm Fix 4 fires on empty incrementals (logged as `[backfill] run #N (...) completed with 0 new rows — skipping promote/refresh/notify`).
+- Browser-level smoke once an authenticated session is available: dashboard filters + detail sheets + write-offs reconciliation should look identical to before deploy.
+
+**Rollback path:** the change is self-contained. To revert:
+1. Revert the merge-view.ts read helpers (single commit).
+2. Revert the tick-worker promote() change (same commit).
+3. `DROP MATERIALIZED VIEW "LiveJob";` — `RawRooflinkJob` is untouched and remains the source of truth.
+
+No data loss in either direction.
+
+---
 
 ### 2026-05-14 — Multi-recipient notifications + audited follow-up send
 

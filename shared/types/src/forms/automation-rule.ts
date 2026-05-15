@@ -59,14 +59,14 @@ export const automationRuleSchema = z
   .refine(
     (v) => v.operator !== 'stays_above_for_n_days' || v.thresholdDays !== null,
     {
-      message: 'thresholdDays required when operator is stays_above_for_n_days',
+      message: 'Enter how many days the metric must stay above the threshold',
       path: ['thresholdDays'],
     },
   )
   .refine(
     (v) => v.recipientMode !== 'fixed_email' || v.recipientEmail !== null,
     {
-      message: 'recipientEmail required when recipientMode is fixed_email',
+      message: 'Enter the email address that should receive this',
       path: ['recipientEmail'],
     },
   );

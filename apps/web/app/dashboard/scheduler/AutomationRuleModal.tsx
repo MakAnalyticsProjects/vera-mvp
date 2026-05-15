@@ -401,49 +401,64 @@ export function AutomationRuleModal({
               />
             ) : null}
 
-            {/* Subject */}
-            <FormField
-              control={form.control}
-              name="subjectTemplate"
-              render={({ field }) => (
-                <FormItem>
-                  <FieldLabel>Subject template</FieldLabel>
-                  <FormControl>
-                    <input
-                      {...field}
-                      type="text"
-                      className="border-border focus:border-accent bg-bg-card text-text-primary placeholder:text-text-muted w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors"
-                    />
-                  </FormControl>
-                  <p className="text-text-muted text-xs">
-                    Placeholders: {'{{job.customer}}'}, {'{{job.balance}}'},{' '}
-                    {'{{job.aging_days}}'}, {'{{job.heat_score}}'},{' '}
-                    {'{{rule.name}}'}, {'{{rep.name}}'}, {'{{rep.email}}'},{' '}
-                    {'{{metric.value}}'}, {'{{metric.name}}'}
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Body */}
-            <FormField
-              control={form.control}
-              name="bodyTemplate"
-              render={({ field }) => (
-                <FormItem>
-                  <FieldLabel>Body template</FieldLabel>
-                  <FormControl>
-                    <textarea
-                      {...field}
-                      rows={8}
-                      className="border-border focus:border-accent bg-bg-card text-text-primary placeholder:text-text-muted w-full resize-y rounded-xl border px-3 py-2.5 text-sm leading-relaxed outline-none transition-colors"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Email template — collapsed by default. The defaults work for
+                most rules; expand only if the operator wants to customize
+                the subject/body or use placeholders other than the defaults. */}
+            <details className="border-border bg-bg-base/40 group rounded-2xl border p-4">
+              <summary className="text-text-secondary flex cursor-pointer items-center justify-between text-sm">
+                <span>
+                  Customize the email Vera proposes
+                  <span className="text-text-muted ml-2 text-xs">
+                    (defaults work fine — expand to edit)
+                  </span>
+                </span>
+                <span className="text-text-muted group-open:rotate-180 transition-transform">
+                  ▾
+                </span>
+              </summary>
+              <div className="mt-4 space-y-4">
+                <FormField
+                  control={form.control}
+                  name="subjectTemplate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FieldLabel>Subject</FieldLabel>
+                      <FormControl>
+                        <input
+                          {...field}
+                          type="text"
+                          className="border-border focus:border-accent bg-bg-card text-text-primary placeholder:text-text-muted w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors"
+                        />
+                      </FormControl>
+                      <p className="text-text-muted text-xs">
+                        Placeholders: {'{{job.customer}}'}, {'{{job.balance}}'},{' '}
+                        {'{{job.aging_days}}'}, {'{{job.heat_score}}'},{' '}
+                        {'{{rule.name}}'}, {'{{rep.name}}'}, {'{{rep.email}}'},{' '}
+                        {'{{metric.value}}'}, {'{{metric.name}}'}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="bodyTemplate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FieldLabel>Body</FieldLabel>
+                      <FormControl>
+                        <textarea
+                          {...field}
+                          rows={8}
+                          className="border-border focus:border-accent bg-bg-card text-text-primary placeholder:text-text-muted w-full resize-y rounded-xl border px-3 py-2.5 text-sm leading-relaxed outline-none transition-colors"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </details>
 
             {/* Daily send cap + enabled */}
             <div className="flex flex-wrap items-end gap-4">

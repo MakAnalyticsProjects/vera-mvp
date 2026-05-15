@@ -62,13 +62,18 @@ export default async function globalSetup(): Promise<void> {
     promotedCount > 0 &&
     process.env.PLAYWRIGHT_ALLOW_PROD_DATA_WIPE !== '1'
   ) {
-    throw new Error(
+    // Preserve mode — the DB holds production-shape data (promoted runs).
+    // Skip the destructive wipe entirely and let the suite read against the
+    // existing data. Specs that depend on empty Backfill*/Raw*/Schedule/Audit
+    // tables may fail; that's the trade for not nuking the 100k+ raw rows.
+    // To force the wipe anyway: PLAYWRIGHT_ALLOW_PROD_DATA_WIPE=1.
+    // eslint-disable-next-line no-console
+    console.warn(
       `[playwright global-setup] target DB has ${promotedCount} promoted BackfillRun row(s) — ` +
-        `refusing to DELETE FROM Backfill*/Raw* tables. ` +
-        `These tables likely contain production-shape data that hours of backfill work produced. ` +
-        `Fix: run Playwright against a dedicated test DB (e.g. vera_test), not the dev DB. ` +
-        `To override (DESTRUCTIVE — wipes the promoted snapshot): set PLAYWRIGHT_ALLOW_PROD_DATA_WIPE=1.`,
+        `running in PRESERVE mode (no tables wiped). Tests that depend on a clean slate may fail. ` +
+        `To force a destructive wipe: PLAYWRIGHT_ALLOW_PROD_DATA_WIPE=1.`,
     );
+    return;
   }
 
   try {

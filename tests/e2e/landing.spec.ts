@@ -10,6 +10,12 @@ test.describe('Landing page', () => {
       page.getByRole('heading', { name: /money that hasn.t come home yet/i }),
     ).toBeVisible();
     await expect(page.getByText('What I do, every morning')).toBeVisible();
+    const demo = page.locator('video[src="/vera-demo.mp4"]');
+    await expect(demo).toBeVisible();
+    await expect(demo).toHaveAttribute('poster', '/vera-demo-poster.jpg');
+    await expect(demo).toHaveJSProperty('autoplay', true);
+    await expect(demo).toHaveJSProperty('muted', true);
+    await expect(demo).toHaveJSProperty('loop', true);
     // Anonymous landing visitor — the primary CTA reads "Sign in" since
     // /dashboard is auth-gated. The signed-in version is covered below.
     await expect(
