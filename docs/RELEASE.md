@@ -36,10 +36,9 @@ manual deploy after every merge to `main`.
 
 Reverse-chronological. Each entry describes the user-visible behavior change.
 
-### 2026-05-15 — Automation rules + RHF standardization (NOT YET DEPLOYED)
+### 2026-05-15 — Automation rules + RHF standardization
 
-**Branch `claude/mystifying-lalande-5470b4`** — landing on `main` once
-manual QA passes. Pre-deploy entry per CLAUDE.md rule #14.
+**Deploying.** Merge commit `9d4dec0` on `main` (PR [#23](https://github.com/adityauphade-mac/vera-mvp/pull/23)). Migration `20260515150000_add_automation_rules` applied to `vera_prod` before code deploy; follow-up hotfix `20260515170000_grant_automation_rules_to_vera_app` granted DML on the new tables to `vera_app` (same lesson as the LiveJob hotfix). Vercel deployment hash recorded once the prod smoke completes.
 
 *Automation rules.* New tab at `/dashboard/scheduler?tab=automation`.
 Operators author rules that watch one of three AR metrics — `aging_days`,
