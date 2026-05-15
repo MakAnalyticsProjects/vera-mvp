@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-05-15 (LiveJob materialized view — pending deploy)
+> Last updated: 2026-05-15 (LiveJob materialized view — deployed)
 
 ---
 
@@ -36,9 +36,9 @@ manual deploy after every merge to `main`.
 
 Reverse-chronological. Each entry describes the user-visible behavior change.
 
-### 2026-05-15 — `LiveJob` materialized view (pending deploy)
+### 2026-05-15 — `LiveJob` materialized view
 
-**Branch `claude/gracious-hawking-3a821c` — not yet on `main`, not yet on production.**
+**Deployed.** Merge commit `25ee43e` on `main` (PR [#20](https://github.com/adityauphade-mac/vera-mvp/pull/20)). Vercel deployment `dpl_BMcGTRVESZMy96Jy4kuF3BEM8BXE`. Migration `20260515000000_add_livejob_materialized_view` applied to `vera_prod` before code deploy. Empty-promoted-incrementals cleanup SQL ran post-deploy (demoted 5 stale runs).
 
 Dashboard read path moved from `SELECT DISTINCT ON ... FROM RawRooflinkJob` (parsing JSONB on every request) to a Postgres materialized view (`LiveJob`) with the AR/write-offs filter fields and the duplicate-address count extracted as proper indexed columns. The user-visible effect is **faster pages**, especially right after a backfill sync:
 
@@ -64,18 +64,22 @@ Cost moved (not added): `REFRESH MATERIALIZED VIEW CONCURRENTLY "LiveJob"` runs 
 - **End-to-end backfill flow tested.** Simulated a complete backfill cycle: created a new `BackfillRun`, wrote a modified `RawRooflinkJob` row for an existing AR job (bumped balance from $52,155.79 → $99,999.99), marked the run `promoted=true`, ran `REFRESH MATERIALIZED VIEW CONCURRENTLY "LiveJob"`, and hit `/api/jobs/aging`. Result: `totalBalance` reflected the new value (delta exactly $47,844.20), job 296667 in the response carried the new balance, totalCount remained 127. New data flows end-to-end exactly as expected. Cleanup verified: after deleting the synthetic row and run + refresh, baseline restored to 127 jobs / $1,236,826.70.
 - Bug found and fixed during verification: `excludeFromQb` was defined as `(payload->>'exclude_from_qb') = 'true'`, which returns NULL for missing fields. The defensive old logic treated missing-field rows as "not excluded" (include in AR). Fixed to `COALESCE(... = 'true', false)` so missing fields → false → row included. Without this, prod rows with missing `exclude_from_qb` would have been silently dropped from the dashboard.
 
-**Production deploy checklist** (do not deploy until these are checked off):
+**Production verification — results from the actual 2026-05-15 deploy:**
 
-1. Verify the migration applies cleanly against a vera_prod **snapshot** (not vera_prod itself first). `CREATE MATERIALIZED VIEW` on 121 k rows took ~3 s in dev — production may be slower.
-2. Time the first `REFRESH MATERIALIZED VIEW CONCURRENTLY` in the snapshot. Confirm it completes within the backfill worker's tick budget.
-3. After deploy, run the verification script against prod to confirm `LiveJob` matches the old `DISTINCT ON` logic on production data.
-4. Run the one-shot cleanup SQL to demote existing empty-incremental promoted runs:
-   ```sql
-   UPDATE "BackfillRun" SET promoted = false
-   WHERE mode = 'incremental' AND "itemsProcessed" = 0 AND promoted = true;
-   ```
-   Idempotent. Confirms zero unnecessary REFRESHes at next tick.
-5. Watch the audit log and backfill worker logs for the first 24 h. If `[backfill] LiveJob refresh failed` ever appears, the cache will be stale until the next successful refresh — investigate immediately.
+| Number | Pre-deploy (OLD JSONB read) | Post-deploy (LiveJob view) | Match? |
+|---|---|---|---|
+| Deduped jobs | 103,440 | 103,440 | ✅ |
+| AR-eligible | 130 | 130 | ✅ |
+| AR total balance | $1,278,629.33 | $1,278,629.33 | ✅ |
+| Duplicate-address keys | 4,545 | 4,545 | ✅ |
+| Rows in dup-address sets | 9,720 | 9,720 | ✅ |
+
+`scripts/verify-livejob.sql` returned zero discrepancies across all 14 checks on vera_prod. Cleanup SQL demoted 5 existing empty-promoted incrementals. First post-deploy REFRESH cycle: 12 s. Public + protected dashboard routes responded as expected (200 for public, 307 redirect to /login for protected — auth middleware functioning correctly).
+
+**What to watch in the first 24 h:**
+- Backfill worker logs. If `[backfill] LiveJob refresh failed` ever appears, the cache will be stale until the next successful refresh — investigate immediately.
+- Audit log for the next promote — confirm Fix 4 fires on empty incrementals (logged as `[backfill] run #N (...) completed with 0 new rows — skipping promote/refresh/notify`).
+- Browser-level smoke once an authenticated session is available: dashboard filters + detail sheets + write-offs reconciliation should look identical to before deploy.
 
 **Rollback path:** the change is self-contained. To revert:
 1. Revert the merge-view.ts read helpers (single commit).
