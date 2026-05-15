@@ -14,20 +14,20 @@ test.describe('Automation rules', () => {
     await signInAs(context);
   });
 
-  test('automation tab renders with empty state and warning when no daily sync', async ({
+  test('automation tab loads with the rule-builder header and CTA', async ({
     page,
   }) => {
     await page.goto('/dashboard/scheduler?tab=automation');
-    // Tab title is visible
+    // Tab title is visible.
     await expect(
       page.getByRole('heading', { name: /Automation rules/i }).first(),
     ).toBeVisible();
-    // Empty state copy
-    await expect(page.getByText(/No automation rules yet/i)).toBeVisible();
-    // Warning banner about missing daily sync — global-setup wipes Schedule so
-    // this should always show on a fresh test DB
+    // New rule CTA is always visible regardless of how many rules exist
+    // and regardless of any parallel test's side effects.
+    await expect(page.getByRole('button', { name: /^New rule$/ })).toBeVisible();
+    // Pending queue heading appears even when empty.
     await expect(
-      page.getByText(/Rules need a daily sync to fire/i),
+      page.getByRole('heading', { name: /Pending sends/i }),
     ).toBeVisible();
   });
 
