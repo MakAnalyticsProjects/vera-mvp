@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-05-15 (narrated demo video — pending deploy)
+> Last updated: 2026-05-15 (narrated demo video — deployed)
 
 ---
 
@@ -38,7 +38,7 @@ Reverse-chronological. Each entry describes the user-visible behavior change.
 
 ### 2026-05-15 — Narrated demo video on the landing page
 
-**Pending.** Merge commit `TBD` on `main` (PR `TBD`). Vercel deployment `TBD`.
+**Deployed.** Merge commit `2c7b976` on `main` (PR [#21](https://github.com/adityauphade-mac/vera-mvp/pull/21)). Vercel deployment `dpl_2c1snwAT29QxkfZAtHCjGZz6EWtC`. Verified live on <https://vera-mvp.vercel.app>: both `<video>` elements in DOM, MP4s + posters serve `200 OK` with correct content-types (`video/mp4`, `image/jpeg`).
 
 A 62-second autoplaying demo video now sits in the landing-page hero, between the Vera headline + CTA buttons and the "What I do, every morning" feature cards. Two renders behind the Tailwind `md:` breakpoint — landscape (1920×1080) for tablet/desktop, portrait (1080×1920) for mobile — walking through fourteen scenes that mirror Vera's real surfaces: sign-in, the morning briefing, heat distribution across active jobs, aging, milestones, follow-ups, reconciliation, the rep leaderboard, write-offs, scheduler cadence, audit log, and a drafted follow-up email. Closes on the brand mark with "Hours back. Leaks closed."
 
