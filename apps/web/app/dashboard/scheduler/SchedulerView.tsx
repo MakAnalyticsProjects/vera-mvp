@@ -39,6 +39,7 @@ import {
   type WeeklyScheduleValues,
 } from '@vera/types';
 import { DataSyncSection } from './DataSyncSection';
+import { AutomationTab } from './AutomationTab';
 
 /**
  * Scheduler — recurring report delivery configuration.
@@ -857,17 +858,7 @@ export function SchedulerView() {
         </TabsContent>
 
         <TabsContent value="automation" className="space-y-4 pt-6">
-          <Card>
-            <div className="space-y-2">
-              <h3 className="font-display text-lg tracking-tight sm:text-xl">
-                Automation rules
-              </h3>
-              <p className="text-text-secondary text-sm leading-relaxed">
-                Coming in B-5 — rule-based emails that watch AR metrics for
-                threshold transitions and propose sends for human approval.
-              </p>
-            </div>
-          </Card>
+          <AutomationTab />
         </TabsContent>
       </Tabs>
     </div>
