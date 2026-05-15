@@ -10,7 +10,9 @@ This file is the source of truth for how code is written in this repository. Eve
 
 **Architecture.** Monorepo (pnpm workspaces + Turborepo), one Next.js 16 app, all shared code in `shared/`, deployed to Vercel. Full architecture in `docs/ARCHITECTURE.md`.
 
-**You are read-only on the source data.** `data/jobs_dedup.jsonl` is never modified. Derived artifacts (`data/generated.json`) are gitignored — they regenerate on build.
+**You are read-only on Rooflink.** Rooflink is the system of record. Vera fetches via their REST API, writes raw payloads to our Postgres, and never writes back. The legacy `data/jobs_dedup.jsonl` export is also read-only and predates the live backfill pipeline (now dormant).
+
+**Production runs on the DB read path** (`USE_DB_DATA_SOURCE=1` on Vercel) against GCP Cloud SQL `vera_prod`. The bundled JSON snapshots in `apps/web/data/` are dormant fallback artifacts kept for emergency rollback only.
 
 ---
 
@@ -18,13 +20,13 @@ This file is the source of truth for how code is written in this repository. Eve
 
 1. **No `any` in TypeScript.** If a type is unclear, infer it from the data, define it in `shared/types`, or use `unknown` and narrow.
 2. **No business logic in components.** Components consume; `shared/domain/*` computes. Heat score, aging, anomaly detection — all in `shared/domain/`.
-3. **No fetching the raw 188 MB JSONL at runtime.** The browser only ever sees `generated.json`.
-4. **Outbound email only via the audited send pipeline.** All sends go through `apps/web/lib/email.ts` → Resend. Every send requires explicit user action and a confirmation step in the UI. Audit trail lives in the Resend dashboard until V2 introduces in-app history. Follow-up "drafts" remain copy-to-clipboard / `mailto:` until they're migrated to the same pipeline. Supersedes Q9 of the original spec — see `DISCUSSION.md` §6.7.
-5. **No autosend without explicit human intent.** Scheduled sends use Resend's `scheduled_at` field — they require a user to compose, preview, and confirm a specific email targeted at a specific time. No recurring cron-triggered sends in MVP. No DB writes (the reserved Neon slot remains reserved for V2). No destructive mutations of any kind.
+3. **The dashboard never fetches the raw 188 MB JSONL or the full ~250 MB JSONB population at runtime.** The hot read path goes through the `LiveJob` Postgres materialized view (definition lives in `apps/web/prisma/migrations/20260515000000_add_livejob_materialized_view/migration.sql`) — one deduplicated row per `(tenantId, rooflinkId)` with the AR/write-offs filter fields and `addressDupCount` extracted as proper indexed columns. Reads are a partial-index lookup (~1 ms); **no JSONB parsing on the request path.** `RawRooflinkJob` remains the source of truth; the view is refreshed by `REFRESH MATERIALIZED VIEW CONCURRENTLY "LiveJob"` inside `tick-worker.promote()` after each non-empty `rooflink_jobs` promote. Read helpers live in `apps/web/lib/backfill/merge-view.ts`. The legacy JSON snapshots in `apps/web/data/*.json` are dormant rollback artifacts, not part of the read path.
+4. **Outbound email only via the audited send pipeline.** All sends go through `apps/web/lib/email.ts` → Resend. Every send requires explicit user action and a confirmation step in the UI. The Resend domain is verified, so emails can be sent to any recipient. Both daily AR briefs and follow-up emails ride this pipeline; both land in `AuditLog` with full recipient/cc/subject/body detail. Supersedes Q9 of the original spec — see `DISCUSSION.md` §6.7.
+5. **No autosend without explicit human intent.** Scheduled sends use Resend's `scheduled_at` field — they require a user to compose, preview, and confirm a specific email targeted at a specific time. The cron dispatcher (`dispatch-briefs`) fires *user-configured* schedules at the user-specified time. No silent recurring sends without a human-authored configuration.
 6. **No new top-level packages without updating this file.** Tech stack is pinned (see below).
 7. **Every new route gets a Playwright spec before it merges.** No exceptions.
 8. **Every default behavior must be visible in the UI** (tooltip / footnote) so users can spot and challenge it. Per the SPEC.md philosophy.
-9. **The Neon DB is shared between local dev and production — there is no staging DB.** Migrations applied locally are instantly live in prod. Treat any script that `DELETE`s or `UPDATE`s more than a single row as production-data-loss-in-the-making, and get explicit user ACK before running it. Read-only queries don't need ACK.
+9. **Local dev DB ≠ production DB. Both can hold real data; never let one be the test target without an explicit guard.** Local runs against `postgres://localhost/vera_dev`; production runs against GCP Cloud SQL `vera_prod`. There is no staging DB. Any script that `DELETE`s or `UPDATE`s more than a single row on either DB is production-data-loss-in-the-making — get explicit user ACK before running. Read-only queries don't need ACK. **Playwright global-setup wipes 8 tables every run**; it has a hard guard refusing to run against any DB with a `promoted=true` `BackfillRun`. Don't disable that guard without thinking very hard about it. (Learned 2026-05-14 the hard way — see `docs/TROUBLESHOOTING_HISTORY.md`.)
 10. **Server (DB) is the source of truth for UI state.** Fetch from the DB on mount; `localStorage` is only a draft buffer for unsaved form input. Never trust the local cached value to match what the cron worker, another tab, or another user is seeing.
 11. **No native browser dialogs, no inline transient banners.** `window.alert()`, `window.confirm()`, and `window.prompt()` are forbidden — they look broken, can't be styled, and can't be tested without intercepting `page.on('dialog')`. Use `useConfirm()` from `@vera/ui` for confirmations and `toast()` from `@vera/ui` (sonner-backed) for success/error/loading feedback. Transient status (sent / saved / paused / cancel-confirmation / API error) goes through toasts, NOT inline `<div>` banners inside the page. Persistent state (a card's "last run failed" history line) stays on-page because it's informational, not transient. Long-running operations (backfill runs, multi-second jobs) use a persistent `toast.loading()` with a stable id and update-in-place — the toast IS the progress UI, no separate progress bar on the page. If you find yourself reaching for `setError` + a conditionally-rendered red div, that's a toast.
     - **Modal flavors** — two patterns, share the same visual chrome (centered, `bg-bg-card`, `rounded-[var(--radius-card)]`, `p-7`, `shadow-2xl`) AND the same display-serif title typography (`font-display text-2xl tracking-tight`). They differ only in what surrounds the title and in default behavior:
@@ -35,6 +37,8 @@ This file is the source of truth for how code is written in this repository. Eve
 12. **User-facing strings never expose internal identifiers.** No `rooflink_lineitems` in an email subject; the user reads "Rooflink estimate line items". Snake_case, kebab-case, and camelCase belong in code, not in copy. Maintain a friendly-label map alongside any enum.
 
 13. **Shared UI primitives live in `@vera/ui`, not in page files.** If you're about to write a small headless component (tabs, modal, dropdown) inline in a page, stop and add it to `shared/ui/src/components/` first, then import from `@vera/ui`. Page-local one-offs accumulate into N copies of slightly different tab buttons. The design system page at `/design` is the inventory of what already exists — check there before adding anything new.
+
+14. **Every production deploy gets an entry in [`docs/RELEASE.md`](docs/RELEASE.md), in the same change set.** When you ship to production — whether via `vercel --prod --yes` after a merge, an env-var flip + redeploy, or any other path that lands new behavior on `vera-mvp.vercel.app` — add a release-log entry **before** running the deploy. The entry includes: date, merge SHA(s), the user-visible change, and the rollback path if non-obvious. The point isn't bureaucracy; it's that "what's live right now?" should always have an answer in `RELEASE.md` without having to dig through commits. Treat it like the audit log for prod itself.
 
 ---
 
@@ -102,8 +106,8 @@ data/                      gitignored — source + generated artifacts
 ## Worktrees
 
 - **Name worktrees by function**, not by adjective. `worktrees/scheduler-natural-key`, `worktrees/qstash-migration` — yes. `claude/festive-burnell-293408` (the auto-generated `claude/<adjective>-<surname>-<digits>` form) — no. The name should describe what's in the worktree, the same way branch names do.
-- **Keep active worktrees minimal.** One per in-flight piece of work. Remove with `git worktree remove <path>` when the work merges. Don't let them accumulate — every worktree duplicates gitignored data (notably the 187 MB `data/jobs_dedup.jsonl`) and adds deploy footguns.
-- **Bootstrap a fresh worktree with `scripts/setup-worktree.sh <path>`.** It copies the gitignored-but-required files (`apps/web/.env.local`, `data/jobs_dedup.jsonl`, `data/generated.json`) from the canonical main repo, runs `pnpm install`, and runs `prisma generate`. Doing this by hand has cost us time twice — don't.
+- **Keep active worktrees minimal.** One per in-flight piece of work. Remove with `git worktree remove <path>` when the work merges. Don't let them accumulate — every worktree duplicates gitignored data (notably the 187 MB `data/jobs_dedup.jsonl` and the per-worktree `node_modules`) and adds deploy footguns.
+- **Bootstrap a fresh worktree with `scripts/setup-worktree.sh <path>`.** It copies the gitignored-but-required files (`apps/web/.env.local`, `data/jobs_dedup.jsonl`, `apps/web/data/generated.json`) from the canonical main repo, runs `pnpm install`, and runs `prisma generate`. Doing this by hand has cost us time twice — don't.
 - **Never deploy from a worktree.** Worktrees carry their own copies of gitignored data, and `vercel --prod` from one will upload the wrong tree (we hit Vercel's 100 MB single-file limit because of this). Deploy from `/Users/aditya-levich/Build/israil_mvp` only.
 
 ---
@@ -113,6 +117,7 @@ data/                      gitignored — source + generated artifacts
 - **Vercel git auto-deploy is not working today** — the Vercel team is owned by the `hexabytecode` GitHub account, the repo is owned by `adityauphade-mac`, and Vercel can't see this namespace. Pushes to `main` do not trigger a deploy. After merging to `main`, run `vercel --prod --yes` from the canonical main repo root every time. (Once the identity mismatch is resolved, this becomes automatic — see memory S1620 for the full diagnosis.)
 - **Modifying `.github/workflows/*` needs the `workflow` OAuth scope** which the default `gh` and OAuth tokens here don't have. You'll get a misleading 404 on the Contents API or a workflow-scope rejection from `git push`. Two paths: use the GitHub web UI (your browser session has full owner permissions) for one-off edits, or refresh CLI access once with `gh auth refresh -h github.com -s workflow`.
 - **One commit, one logical change.** Bundling a refactor with an infrastructure migration in the same PR (we did this with PR #13) works but makes review harder. Default to separate PRs unless the changes are inseparable.
+- **Add the `docs/RELEASE.md` entry before you deploy, not after.** Per rule #14. A deploy without a release-log entry is incomplete. Format: date, merge SHA(s) on `main`, the user-visible change in plain English, rollback path if non-obvious. Newest entry on top.
 
 ---
 
@@ -307,7 +312,7 @@ Chat audit entries capture the user's question text in `details.messages` (withi
 | `/api/chat` | POST | Streams Claude responses via Vercel AI SDK |
 | `/api/brief/send` | POST | Generates daily AR brief + PDF, sends via Resend (immediate or `scheduled_at`). Body: `{ to, sendAt? }` |
 
-Every route validates request input with Zod and returns Zod-validated JSON. No route reads `jobs_dedup.jsonl` directly — only the cached `generated.json`. All filtering/aggregation delegates to `shared/domain/*` so behavior matches the build-time preprocess.
+Every route validates request input with Zod and returns Zod-validated JSON. Dashboard routes read from Postgres at request time via `lib/data.ts` → `merge-view.ts`, which queries the `LiveJob` materialized view (deduplicated, indexed columns — AR filter and write-offs filter are partial-index lookups, ~1 ms). The `@vera/domain` transforms (`toARJob`, `toWriteOffRecord`, heat score, anomalies, reconciliation) run in Node on the filtered set. Same domain code paths the legacy `scripts/preprocess.ts` used, so JSON-path and DB-path produce equivalent results.
 
 ---
 
@@ -317,10 +322,44 @@ Every route validates request input with Zod and returns Zod-validated JSON. No 
 |---|---|---|
 | `ANTHROPIC_API_KEY` | server only | Never expose. Lives in Vercel project settings + `.env.local`. |
 | `OPENAI_API_KEY` | server only | Used by `/api/chat` until the Anthropic migration. |
-| `RESEND_API_KEY` | server only | Used by `/api/brief/send`. Without it, the route returns 503. Domain verification still pending — dev uses `onboarding@resend.dev` and can only send to the Resend account holder's email. |
+| `RESEND_API_KEY` | server only | Used by `/api/brief/send` and `/api/follow-ups/send`. Without it, the routes return 503. Domain is verified — emails are sent from `EMAIL_FROM` (default `Vera <onboarding@resend.dev>`; production uses the verified Priority Roofs domain). No recipient restrictions. |
+| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | server only | GCP Cloud SQL `vera_prod` at `34.56.121.151:5432`. Stored in Vercel as **Sensitive** — the dashboard "Reveal" button is greyed out and `vercel env pull` returns an empty string. Recovery copy lives in `.env.prod` (see below). |
 | `NEXT_PUBLIC_*` | client OK | Reserved for genuinely public values; avoid for now. |
 
-`.env.local` is gitignored. `.env.example` is checked in with empty values.
+`.env.local` (local dev) and `.env.prod` (production recovery) are both gitignored. `.env.example` is checked in with empty values.
+
+### Production environment — single source of truth + recovery
+
+The **deployed runtime reads its env from Vercel.** Vercel is authoritative for production. Local processes never connect to prod env vars.
+
+But Vercel's "Sensitive" env type is write-only — once saved, you cannot read the value back through the dashboard, the CLI (`vercel env pull` returns empty), or the API. Anything that looks like a credential (`DATABASE_URL`, `AUTH_SECRET`, `GOOGLE_CLIENT_SECRET`, signing keys, API tokens) ends up Sensitive. If we ever lose those values — project recreated, vendor lockout, migration — Vercel cannot restore them for us.
+
+`/.env.prod` is the **manual recovery copy**. It mirrors every production env var, gitignored and vercelignored. **Not used at runtime by any process.** Its only job is to make Vercel's Sensitive lockout recoverable.
+
+**Hard rules for `.env.prod`:**
+
+1. **Never commit it.** Listed in `.gitignore` line 26.
+2. **Never deploy it.** Listed in `.vercelignore`.
+3. **When you change a prod env var in the Vercel dashboard, update `.env.prod` in the same sitting.** The two surfaces drift = the recovery copy is worthless.
+4. **Not used at build/runtime.** Nothing reads it. Vercel deploys read from Vercel runtime env; local dev reads from `apps/web/.env.local`. The `.env.prod` file is for human-led recovery only.
+5. **Treat it like the password manager entry it effectively is.** Don't paste contents into chat, don't share over Slack, don't cat it in CI logs. If you need to inspect, `grep` for the specific key.
+
+**Recovery flow if Vercel loses an env var (or the project is recreated):**
+
+```bash
+# Restore everything from .env.prod to Vercel production env:
+while IFS='=' read -r KEY VAL; do
+  [[ -z "$KEY" || "$KEY" =~ ^# ]] && continue
+  # strip surrounding quotes if present
+  VAL="${VAL%\"}"; VAL="${VAL#\"}"
+  printf '%s' "$VAL" | vercel env add "$KEY" production
+done < .env.prod
+vercel --prod --yes
+```
+
+**When migrating a credential** (new DB password, rotated API key, etc.) the sequence is: update `.env.prod` → update Vercel dashboard → update local `apps/web/.env.local` if dev uses the same value → redeploy.
+
+Stale env vars (the old Neon `POSTGRES_*` / `PG*` / `NEON_PROJECT_ID` set from the Vercel Marketplace Neon integration before the GCP cutover) have been removed from Vercel as of 2026-05-14. If you see a stale credential reappear, the integration may have been re-installed — check **Vercel → Project → Integrations**.
 
 ---
 
@@ -394,7 +433,7 @@ If you change a module, run its spec. If it fails, fix the spec or the code — 
 2. **Default to the simplest thing that satisfies the spec.** This is an MVP, not a platform.
 3. **Surface the assumption in the UI** rather than hiding it. Tooltip + question number from SPEC.md.
 4. **Ask before adding a new dependency.** The pinned stack is intentional.
-5. **Ask before touching `data/jobs_dedup.jsonl`.** It's read-only.
+5. **Ask before touching shared data sources.** `data/jobs_dedup.jsonl` is read-only and dormant. `vera_prod` (GCP) is production — never run destructive SQL without explicit user ACK. `vera_dev` (local) has been seeded with production-shape data — the Playwright guard now refuses to wipe it, but anything you write yourself should be equally cautious.
 
 ---
 

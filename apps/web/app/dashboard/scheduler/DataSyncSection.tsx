@@ -12,6 +12,7 @@ import {
 import {
   Button,
   Card,
+  EmailChipInput,
   Select,
   SelectContent,
   SelectItem,
@@ -37,6 +38,8 @@ import {
 
 type Source = 'rooflink_jobs' | 'rooflink_lineitems';
 
+const RECIPIENTS_CAP = 6;
+
 interface BackfillSchedule {
   id: number;
   tenantId: number;
@@ -46,6 +49,7 @@ interface BackfillSchedule {
   dayOfMonth: string | null;
   timeLocal: string;
   timezone: string;
+  recipients: string[];
   enabled: boolean;
   nextRunAt: string | null;
   lastRunAt: string | null;
@@ -116,6 +120,7 @@ interface DraftForm {
   dayOfWeek: string;
   dayOfMonth: string;
   timeLocal: string;
+  recipients: string[];
 }
 
 const DEFAULT_FORM: DraftForm = {
@@ -123,7 +128,25 @@ const DEFAULT_FORM: DraftForm = {
   dayOfWeek: '1',
   dayOfMonth: 'last',
   timeLocal: '03:00',
+  recipients: [],
 };
+
+function isValidEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+function recipientsValid(list: readonly string[]): boolean {
+  if (list.length === 0) return false;
+  if (list.length > RECIPIENTS_CAP) return false;
+  return list.every(isValidEmail);
+}
+
+function recipientsEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
 
 function resolveTimezone(): string {
   if (typeof window === 'undefined') return 'America/Chicago';
@@ -162,6 +185,7 @@ function formFromSchedule(s: BackfillSchedule): DraftForm {
     dayOfWeek: String(s.dayOfWeek ?? 1),
     dayOfMonth: s.dayOfMonth ?? 'last',
     timeLocal: s.timeLocal,
+    recipients: s.recipients,
   };
 }
 
@@ -174,6 +198,7 @@ function isDirty(form: DraftForm, server: BackfillSchedule): boolean {
   if (form.cadence === 'monthly') {
     if (form.dayOfMonth !== (server.dayOfMonth ?? 'last')) return true;
   }
+  if (!recipientsEqual(form.recipients, server.recipients)) return true;
   return false;
 }
 
@@ -435,8 +460,14 @@ export function DataSyncSection() {
   }, [loadActive, loadAll, activeRuns.rooflink_jobs, activeRuns.rooflink_lineitems]);
 
   async function saveSchedule(source: Source) {
-    setPendingAction((p) => ({ ...p, [source]: 'save' }));
     const form = forms[source];
+    if (!recipientsValid(form.recipients)) {
+      toast.error(`Couldn't save the ${sourceLabel(source)} schedule`, {
+        description: 'Add at least one valid recipient for sync notifications.',
+      });
+      return;
+    }
+    setPendingAction((p) => ({ ...p, [source]: 'save' }));
     try {
       const res = await fetch(`/api/backfills/${source}/schedule`, {
         method: 'PUT',
@@ -447,6 +478,7 @@ export function DataSyncSection() {
           dayOfMonth: form.cadence === 'monthly' ? form.dayOfMonth : null,
           timeLocal: form.timeLocal,
           timezone,
+          recipients: form.recipients,
           enabled: schedules[source]?.enabled ?? true,
         }),
       });
@@ -484,6 +516,7 @@ export function DataSyncSection() {
           dayOfMonth: cur.dayOfMonth,
           timeLocal: cur.timeLocal,
           timezone: cur.timezone,
+          recipients: cur.recipients,
           enabled: next,
         }),
       });
@@ -537,6 +570,14 @@ export function DataSyncSection() {
   }
 
   async function runNow(source: Source) {
+    const form = forms[source];
+    if (!recipientsValid(form.recipients)) {
+      toast.error(`Couldn't start ${sourceLabel(source)} sync`, {
+        description:
+          'Add at least one notification recipient first — sync emails need somewhere to go.',
+      });
+      return;
+    }
     setPendingAction((p) => ({ ...p, [source]: 'run' }));
     try {
       // The server picks mode automatically — full when no watermark,
@@ -697,8 +738,11 @@ function BackfillCard({
       : null;
 
   const dimBody = isPaused ? 'opacity-60' : '';
+  const recipientsOk = recipientsValid(form.recipients);
   const saveDisabled =
-    pendingAction !== null || (schedule !== null && !dirty);
+    pendingAction !== null ||
+    !recipientsOk ||
+    (schedule !== null && !dirty);
 
   return (
     <Card data-testid={`backfill-card-${source}`}>
@@ -877,6 +921,27 @@ function BackfillCard({
             </Field>
           </div>
 
+          {/* Recipients — sync completion & failure alerts. Sits in its own
+              row so the chip input has room to wrap multiple addresses. */}
+          <div className="border-border bg-bg-base/40 space-y-1.5 rounded-2xl border p-4">
+            <label
+              htmlFor={`recipients-${source}`}
+              className="text-text-muted text-[0.65rem] tracking-[0.2em] uppercase"
+            >
+              Notification recipients
+            </label>
+            <p className="text-text-secondary text-xs">
+              Sync completion and failure alerts go here — these emails get the PDF report when a run finishes.
+            </p>
+            <EmailChipInput
+              value={form.recipients}
+              onChange={(next) => onFormChange({ recipients: next })}
+              max={RECIPIENTS_CAP}
+              placeholder="ops@yourcompany.com"
+              ariaLabel={`Notification recipients for ${meta.title}`}
+            />
+          </div>
+
           {/* Next-run line (transient errors go to toasts now, not inline) */}
           {schedule?.nextRunAt && !isRunning ? (
             <div className="border-border bg-bg-base/40 flex items-center gap-2 rounded-xl border px-3 py-2">
@@ -934,7 +999,12 @@ function BackfillCard({
               <Button
                 type="button"
                 onClick={onRunNow}
-                disabled={pendingAction !== null}
+                disabled={pendingAction !== null || !recipientsOk}
+                title={
+                  !recipientsOk
+                    ? 'Add at least one notification recipient first'
+                    : undefined
+                }
               >
                 <Play className="mr-2 h-3.5 w-3.5" />
                 <span className="whitespace-nowrap">

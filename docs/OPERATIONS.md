@@ -1,407 +1,372 @@
-# Vera — Operations runbook
+# Operations runbook
 
-Step-by-step recipes for the things you'll actually do. If `INFRASTRUCTURE.md`
+Recipes for things you'll actually do. If [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md)
 is the map, this is the manual.
 
-> Last updated: May 8, 2026.
+> Last updated: 2026-05-14
 
 ---
 
 ## Table of contents
 
-1. [How a daily AR brief gets sent](#how-a-daily-ar-brief-gets-sent)
-2. [How the dashboard's morning briefing refreshes](#how-the-dashboards-morning-briefing-refreshes)
-3. [Schedule a brief for a recipient](#schedule-a-brief-for-a-recipient)
-4. [Send a brief right now (one-shot)](#send-a-brief-right-now-one-shot)
-5. [Manually trigger the dispatcher](#manually-trigger-the-dispatcher)
-6. [Check whether a scheduled brief was sent](#check-whether-a-scheduled-brief-was-sent)
-7. [Deploy to production](#deploy-to-production)
-8. [Roll back a bad deploy](#roll-back-a-bad-deploy)
-9. [Rotate a secret](#rotate-a-secret)
-10. [Common troubleshooting](#common-troubleshooting)
+### Daily ops
+- [Trigger a Rooflink backfill (Run-now or scheduled)](#trigger-a-rooflink-backfill)
+- [Configure recurring backfills](#configure-recurring-backfills)
+- [Check whether a backfill completed and what data it produced](#check-a-backfill)
+- [Send a daily AR brief right now](#send-a-brief-now)
+- [Schedule a recurring brief](#schedule-a-recurring-brief)
+- [Refresh the AI dashboard briefing](#refresh-the-dashboard-briefing)
+
+### Deployment
+- [Deploy to production](#deploy-to-production)
+- [Roll back the DB read path to the JSON snapshot (emergency)](#roll-back-the-db-read-path)
+- [Roll back a bad deploy](#roll-back-a-bad-deploy)
+
+### Database
+- [Connect to vera_prod (read-only investigation)](#connect-to-vera_prod)
+- [Connect to vera_dev (local)](#connect-to-vera_dev)
+- [Restore local DB from production (after a wipe)](#restore-local-db-from-production)
+
+### Secrets
+- [Rotate a secret](#rotate-a-secret)
+- [Rotate the vera_app DB password](#rotate-the-vera_app-db-password)
+
+### Troubleshooting
+- [Diagnosing a stuck backfill](#diagnosing-a-stuck-backfill)
+- [Why didn't my dashboard data update?](#why-didnt-my-dashboard-data-update)
+- [Common Vercel deploy failures](#common-vercel-deploy-failures)
 
 ---
 
-## How a daily AR brief gets sent
+## Daily ops
 
-End-to-end: from a row in the `Schedule` table to a PDF in someone's inbox.
+### Trigger a Rooflink backfill
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant QS as Upstash QStash
-    participant API as Vercel · /api/cron/dispatch-briefs
-    participant DB as Neon Postgres
-    participant Resend
-    participant Inbox
+The fastest way to pull fresh data from Rooflink into the DB.
 
-    Note over QS: every 5 min
-    QS->>API: POST + upstash-signature JWT
-    API->>DB: SELECT Schedule WHERE nextRunAt <= now
-    loop for each due row
-      API->>DB: UPDATE schedule SET nextRunAt=newValue<br/>WHERE id=$id AND nextRunAt=$old<br/>(optimistic claim)
-      alt claim count = 1
-        API->>API: sendBrief() — render PDF, build HTML
-        API->>Resend: emails.send(from, to, html, attachments)
-        Resend-->>API: { id }
-        API->>DB: INSERT SendLog (status=sent, resendId)
-        Resend->>Inbox: deliver
-      else claim count = 0
-        Note over API: another dispatch beat us — skip
-      end
-    end
-    API-->>QS: { dispatched, failed, skipped }
-```
+**Via the UI (recommended):**
+1. Open `/dashboard/scheduler` on production.
+2. Switch to the **Data sync** tab.
+3. Click **Run now** on either source (`Rooflink jobs` or `Rooflink line items`).
+4. A toast confirms the run started. The run page polls for progress.
 
-Three guarantees:
+**Mode selection** is automatic: if a previous completed run exists, the new
+run uses `incremental` mode and only fetches records edited since
+`BackfillSchedule.lastSyncedAt`. First-ever run uses `full` mode and pulls
+everything. Force a full re-sync by adding `?mode=full` if hitting the API
+directly.
 
-1. **At most one send per slot.** The optimistic lock on `nextRunAt` means two
-   concurrent dispatches can never both fire the same schedule.
-2. **Crash-safe.** If we crash after `sendBrief` but before `SendLog`, the
-   schedule is already advanced — we won't retry on the next tick.
-3. **Drift tolerant.** QStash cron is usually within a few seconds of the
-   tick. A schedule for 1:00 PM typically fires at 1:00–1:01 PM. The worst
-   case is bounded by your QStash cron's interval (5 min for us). It will
-   not fire at 12:58 PM and it will not fire twice.
-
-What the dispatcher does NOT do:
-
-- It doesn't auto-retry a failed send. If Resend is rate-limited or returns
-  500, the failure is recorded in `SendLog` but the schedule still advances.
-  Use [Send a brief right now](#send-a-brief-right-now-one-shot) to re-send.
-
----
-
-## How the dashboard's morning briefing refreshes
-
-Two paths land a fresh AI briefing in the `Briefing` table. The dashboard
-always shows the most recent row.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant User
-    participant Dash as /dashboard
-    participant API as /api/briefings/regenerate
-    participant Gen as briefing-generator.ts
-    participant DB as Neon Postgres
-    participant OpenAI
-    participant NWS
-    participant News as NewsAPI
-
-    rect rgba(220, 230, 255, 0.5)
-    Note over User,DB: Manual path — "Fetch latest news" button
-    User->>Dash: click Fetch latest news
-    Dash->>API: POST
-    API->>Gen: generateBriefingForTenant(1)
-    par
-      Gen->>NWS: alerts for Texas
-      Gen->>News: roofing headlines
-    end
-    Gen->>OpenAI: gpt-4o, system + user prompt
-    OpenAI-->>Gen: { headline, bodyMd }
-    Gen->>DB: INSERT Briefing
-    API-->>Dash: { briefing }
-    Dash-->>User: render State C
-    end
-
-    rect rgba(255, 235, 220, 0.5)
-    Note over User,DB: Scheduled path — weekday 7am Central
-    Note over Gen: invoked by the QStash generate-briefings schedule
-    Gen->>NWS: alerts
-    Gen->>News: headlines
-    Gen->>OpenAI: gpt-4o
-    Gen->>DB: INSERT Briefing
-    end
-```
-
-Costs roughly half a cent per briefing (gpt-4o pricing × ~600 tokens). Cached
-in DB until the next refresh.
-
----
-
-## Schedule a brief for a recipient
-
-For the GM (or anyone) to start receiving a daily brief.
-
-1. Sign in at https://vera-mvp.vercel.app/login (Google).
-2. Navigate to **Scheduler** in the sidebar.
-3. In the **Daily AR brief** row:
-   - **Time** — pick on the 15-minute grid (`08:00`, `08:15`, `08:30`, `08:45`,
-     etc). Typing a non-grid value snaps to the nearest tick on blur.
-   - **Recipient** — any valid email. Resend will deliver to anyone (sender
-     domain `makanalytics.org` is verified).
-4. Click **Schedule**. You'll see *"Scheduled — next run [date, time, your tz]"*.
-5. The brief fires at the specified time, every weekday, until you disable
-   the row or delete the schedule.
-
-> The time is interpreted in **your browser's timezone**, not the tenant's.
-> Whoever picks the time sees their own local clock. The toast confirms the
-> next-run timestamp in the same timezone.
-
----
-
-## Send a brief right now (one-shot)
-
-Two ways:
-
-### From the UI
-On the Scheduler page, click **Send now** in any report row. Hits Resend
-immediately, no schedule row created. Use this for ad-hoc sends or to retry
-a failed scheduled send.
-
-### Via curl (for ops debugging)
-```bash
-curl -X POST https://vera-mvp.vercel.app/api/brief/send \
-  -H "Content-Type: application/json" \
-  -d '{"to":"someone@example.com","cadence":"daily"}'
-```
-
-Returns `{ id, scheduledFor, subject, pdfBytes, to }` on success.
-
----
-
-## Manually trigger the dispatcher
-
-For testing the cron loop without waiting for the next QStash tick.
-
-Direct curl (uses the legacy bearer auth, which the endpoint still
-accepts as a fallback to QStash signatures):
+**Via the API:**
 
 ```bash
-CRON_SECRET="$(grep '^CRON_SECRET=' apps/web/.env.local | cut -d= -f2- | tr -d '"')"
-curl -X POST https://vera-mvp.vercel.app/api/cron/dispatch-briefs \
-  -H "Authorization: Bearer $CRON_SECRET"
+curl -X POST 'https://vera-mvp.vercel.app/api/backfills/rooflink_jobs/runs' \
+  -H "Cookie: __Secure-authjs.session-token=<your-session-token>"
 ```
 
-Or via a one-off QStash publish (exercises the signed-path end-to-end,
-not just the bearer fallback):
+**What happens next:** the route inserts a `BackfillRun` row, publishes the
+first tick to QStash. The tick worker fetches one page from Rooflink,
+writes raw JSONB to `RawRooflinkJob` (or `RawRooflinkLineItems`), publishes
+the next tick. Last tick marks `promoted=true` and invalidates the dashboard
+cache. After that, every dashboard request sees the new data.
 
-```bash
-QSTASH_TOKEN="$(grep '^QSTASH_TOKEN=' apps/web/.env.local | cut -d= -f2- | tr -d '"')"
-curl -X POST "https://qstash-us-east-1.upstash.io/v2/publish/https://vera-mvp.vercel.app/api/cron/dispatch-briefs" \
-  -H "Authorization: Bearer $QSTASH_TOKEN" \
-  -H "Content-Length: 0"
+**How long it takes:**
+- Incremental, jobs: 1–5 min (depends on how many records changed).
+- Incremental, line items: 5–30 min (one Rooflink API call per estimate).
+- Full, jobs: ~17 min (103k records at 1 req/sec).
+- Full, line items: ~2.5 hours (8,500 estimates at 1 req/sec).
+
+### Configure recurring backfills
+
+Same Scheduler page → **Data sync** tab → click the gear next to a source →
+pick cadence + time. One row per source per tenant (natural key).
+
+```
+Cadence:    daily / weekly / monthly
+Time:       any 15-min increment in the tenant's timezone
+Timezone:   IANA (e.g. America/Chicago)
 ```
 
-Both routes the same `/api/cron/dispatch-briefs`. Same code path as a
-QStash-triggered scheduled run.
+After saving, the cron dispatcher (`/api/cron/dispatch-briefs`, which also
+handles backfills) picks up the row on its next sweep (within 15 min).
 
----
-
-## Scheduler trigger: Upstash QStash
-
-QStash is the primary trigger for both cron endpoints. We migrated off
-GitHub Actions cron on May 11 after observing a ~95% miss rate — GitHub
-delivers roughly 6 of the 96 ticks/day we asked for, with multi-hour
-gaps. QStash is purpose-built for this and runs within seconds of the
-tick.
-
-### Schedules currently configured
-
-| Schedule | Cron expression | Target URL | Notes |
-|---|---|---|---|
-| Dispatch due AR briefs | `*/5 * * * *` (every 5 min) | `https://vera-mvp.vercel.app/api/cron/dispatch-briefs` | Sweeps the `Schedule` table |
-| Generate daily AI briefings | `0 12 * * 1-5` (12:00 UTC Mon–Fri) | `https://vera-mvp.vercel.app/api/cron/generate-briefings` | One row per tenant |
-
-### To create or edit schedules
-
-QStash dashboard → **Schedules** → **Create Schedule**. The configured
-fields:
-
-- **Endpoint:** the Vercel URL above.
-- **Cron:** the expression above.
-- **HTTP method:** POST.
-- **Body:** leave empty.
-- **Retries:** default (3) is fine. If a tick lands while Vercel is
-  redeploying, QStash retries; the dispatcher is idempotent via its
-  optimistic lock so duplicates can't double-fire a schedule.
-
-### Authentication
-
-QStash signs every outgoing request with a JWT in the
-`upstash-signature` header. The endpoints verify it against
-`QSTASH_CURRENT_SIGNING_KEY` and `QSTASH_NEXT_SIGNING_KEY` (both
-present so QStash can rotate without an outage window — copy both
-values from the QStash dashboard to Vercel env vars).
-
-The legacy `Authorization: Bearer $CRON_SECRET` path is still accepted
-for manual triggering (see [Manually trigger the dispatcher](#manually-trigger-the-dispatcher)),
-so leaving `CRON_SECRET` set is fine.
-
-### What to do if QStash is down
-
-Hit the cron endpoints directly with the legacy bearer auth — same
-endpoints, same code path, just bypassing QStash entirely. Use the
-`curl` command in [Manually trigger the dispatcher](#manually-trigger-the-dispatcher)
-above. Loop it from a `watch` if you need to flush a backlog while
-QStash is recovering.
-
----
-
-## Check whether a scheduled brief was sent
-
-`SendLog` is the audit trail.
+### Check a backfill
 
 ```sql
-SELECT id, "scheduleId", "toEmail", status, "resendId", "pdfBytes",
-       "sentAt" AT TIME ZONE 'Asia/Kolkata' AS "sentIST",
-       "errorMessage"
-  FROM "SendLog"
- ORDER BY id DESC
- LIMIT 10;
+-- Most recent runs, any source
+SELECT id, source, status, mode, promoted, "itemsProcessed", "itemsTotal",
+       "startedAt", "finishedAt", "lastError"
+FROM "BackfillRun"
+ORDER BY id DESC
+LIMIT 10;
+
+-- What's currently the "live" snapshot
+SELECT id, source, "itemsProcessed", "finishedAt"
+FROM "BackfillRun"
+WHERE promoted = true AND status = 'completed'
+ORDER BY id;
+
+-- How many distinct records are in the live snapshot
+SELECT count(DISTINCT "rooflinkId") AS live_jobs
+FROM "RawRooflinkJob"
+WHERE "dataVersion" IN (
+  SELECT id FROM "BackfillRun"
+  WHERE promoted=true AND status='completed' AND source='rooflink_jobs'
+);
 ```
 
-| status | meaning |
-|---|---|
-| `sent` | Resend accepted the email and returned a `resendId`. |
-| `failed` | Either `sendBrief` errored or Resend rejected. See `errorMessage`. |
+A sync-complete email lands in the configured recipient inbox after every
+successful non-empty run. The PDF attached lists up to 200 records the run
+touched. See [`SYNC_EMAIL.md`](SYNC_EMAIL.md) for the full pipeline.
 
-To check Resend's actual delivery state for a `resendId`:
+### Send a brief now
 
-```bash
-RESEND_KEY="$(grep '^RESEND_API_KEY=' apps/web/.env.local | cut -d= -f2-)"
-curl -s "https://api.resend.com/emails/<resendId>" \
-  -H "Authorization: Bearer $RESEND_KEY" | jq '.last_event'
-```
+`/dashboard/scheduler` → **Briefings** tab → click **Send now** on the row
+for the recipient you want. The route generates the PDF in-process, calls
+Resend, and logs the send in `SendLog` and `AuditLog`.
 
-`last_event` will be one of: `sent`, `delivered`, `bounced`, `complained`,
-`opened`, `clicked`. `delivered` means the recipient's mail server accepted it.
+Without `RESEND_API_KEY` set, the route returns 503 with a clear error.
+
+### Schedule a recurring brief
+
+Same page → **Briefings** tab → set cadence + time. The dispatcher fires
+when `nextRunAt <= now`, claims the row by atomically advancing `nextRunAt`,
+and triggers the send.
+
+Up to ~15 min drift between the configured time and the actual fire because
+the cron sweep runs every 15 min. For daily briefs at 8 AM, this is
+invisible.
+
+### Refresh the dashboard briefing
+
+The AI briefing at the top of `/dashboard` regenerates automatically every
+weekday at 7 AM Central via the `generate-briefings` GitHub Actions cron.
+
+To regenerate on demand:
+1. Open `/dashboard` while signed in.
+2. Click **Fetch latest news**.
+3. The route calls Anthropic, writes a new `Briefing` row, and the page
+   re-renders.
 
 ---
 
-## Deploy to production
+## Deployment
 
-The fast path is a push to `main`:
-
-```bash
-git push origin main      # Vercel auto-builds + deploys
-```
-
-Or, from a feature branch, open a PR and merge it. Vercel deploys the merge
-commit automatically.
-
-For a same-branch redeploy without going through git (e.g. you changed an env
-var):
+### Deploy to production
 
 ```bash
+cd /Users/aditya-levich/Build/israil_mvp   # never from a worktree
+git checkout main
+git pull origin main
 vercel --prod --yes
 ```
 
-After any deploy, smoke-test:
+Auto-deploy is broken (the Vercel team and GitHub repo are owned by
+different accounts that can't see each other) — this manual deploy is
+required after every merge to `main` until that's resolved.
+
+Expected duration: ~90 seconds end-to-end.
+
+### Roll back the DB read path
+
+If the DB-backed dashboard ever misbehaves and you need to fall back to the
+build-time JSON snapshot (which still exists in the deploy artifact):
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" https://vera-mvp.vercel.app/        # 200
-curl -s -o /dev/null -w "%{http_code}\n" https://vera-mvp.vercel.app/dashboard  # 307 → /login
-```
-
----
-
-## Roll back a bad deploy
-
-Vercel keeps every deploy. Roll back via CLI:
-
-```bash
-# list recent prod deploys
-vercel ls --prod
-
-# pick the one BEFORE the bad deploy and promote it
-vercel rollback <deployment-url>
-```
-
-The rollback completes in seconds. If the bad change was already on `main`,
-you also want to revert the commit on git so the next push doesn't re-deploy
-the same broken state:
-
-```bash
-git revert <bad-sha>
-git push origin main
-```
-
----
-
-## Rotate a secret
-
-Any of the encrypted env vars on Vercel.
-
-```bash
-# remove the old value
-vercel env rm <NAME> production
-
-# add the new value (interactive paste)
-vercel env add <NAME> production
-
-# trigger a redeploy so the new value is in use
+vercel env rm USE_DB_DATA_SOURCE production -y
+echo "0" | vercel env add USE_DB_DATA_SOURCE production
 vercel --prod --yes
 ```
 
-For `CRON_SECRET` specifically, you also need to update the **GitHub repo
-secret** so the workflows keep authenticating:
+Total time: ~60 seconds. Dashboards revert to the JSON snapshot. Auth +
+audit writes still go to the DB; only the read path flips.
+
+### Roll back a bad deploy
 
 ```bash
-gh secret set CRON_SECRET --body "<new-value>"
+vercel rollback   # interactive — picks the previous Ready deployment
+```
+
+This re-aliases `vera-mvp.vercel.app` to the prior deployment. **It does
+not roll back env vars** — those are project-level. If the deploy that's
+being rolled back depended on an env-var change, revert that too.
+
+---
+
+## Database
+
+### Connect to vera_prod
+
+Read-only investigation should always use a temporary `psql` session, not
+saved tools. The connection string is in your `.env.local`.
+
+```bash
+# Pull connection string from Vercel env (or use what you have locally)
+vercel env pull /tmp/prod.env --environment=production
+source <(grep DATABASE_URL /tmp/prod.env)
+rm /tmp/prod.env
+
+psql "$DATABASE_URL"
+
+# Always disconnect when done
+\q
+```
+
+For sensitive queries (anything that mutates), open a separate terminal,
+acknowledge what you're about to do out loud, run it, exit. Don't keep a
+long-lived superuser session.
+
+### Connect to vera_dev
+
+```bash
+psql -U aditya.uphade -d vera_dev   # localhost defaults
+```
+
+### Restore local DB from production
+
+If your local DB has been wiped (e.g. by Playwright global-setup losing its
+guard, or accidentally `prisma migrate reset`), restore from `vera_prod`:
+
+```bash
+VERA_APP_PASSWORD=$(cat /tmp/vera_app_password.txt)   # or wherever you stash it
+
+for table in BackfillRun RawRooflinkJob RawRooflinkLineItems FailureNotificationSetting; do
+  echo "Copying $table..."
+  PGPASSWORD="$VERA_APP_PASSWORD" psql "host=34.56.121.151 port=5432 user=vera_app dbname=vera_prod sslmode=require" \
+    -c "COPY \"$table\" TO STDOUT" | \
+  psql -U aditya.uphade -d vera_dev -c "COPY \"$table\" FROM STDIN"
+done
+```
+
+About 90 seconds total. The piped `COPY` works around the pg_dump 15 → PG 16
+version mismatch; no temp files needed.
+
+Verify after:
+
+```sql
+SELECT count(*) FROM "BackfillRun" WHERE promoted=true AND status='completed';
+-- expect: 2 (jobs run #131 + lineitems run #135)
 ```
 
 ---
 
-## Common troubleshooting
+## Secrets
 
-### "I scheduled a brief but it didn't fire"
+### Rotate a secret
 
-```mermaid
-flowchart TD
-    A[No email] --> B{Look up SendLog<br/>for the schedule}
-    B -->|Row exists, status=sent| C[Resend accepted it.<br/>Check spam folder.<br/>Look up resendId in Resend dashboard]
-    B -->|Row exists, status=failed| D[Read errorMessage<br/>fix root cause<br/>retry via Send now]
-    B -->|No row| E{Check Schedule.nextRunAt}
-    E -->|in the future| F[It's not due yet — wait]
-    E -->|in the past| G{Check QStash dashboard<br/>→ Logs for the dispatch schedule}
-    G -->|recent tick, 200, dispatched=0| H[The dispatcher didn't see your<br/>row. Check enabled=true and<br/>tenantId match]
-    G -->|recent tick, non-200| J[Read QStash response body —<br/>likely a 500 from /api/cron/dispatch-briefs]
-    G -->|no recent tick| I[QStash didn't fire. Check the<br/>schedule is enabled in the dashboard.<br/>Manually trigger as fallback]
-```
+| Secret | Where to rotate | How |
+|---|---|---|
+| `AUTH_SECRET` / `NEXTAUTH_SECRET` | Generate a new value | `openssl rand -hex 32` then update Vercel env + local `.env.local` |
+| `ANTHROPIC_API_KEY` | Anthropic console → API Keys | Create new key, update Vercel env, delete old key |
+| `RESEND_API_KEY` | Resend dashboard → API Keys | Create new key, update Vercel env, delete old key |
+| `GOOGLE_CLIENT_SECRET` | GCP Console → APIs & Services → Credentials | Rotate, update Vercel env. Auth sessions still valid — JWT is signed by `AUTH_SECRET`, not by Google |
+| `CRON_SECRET` | Generate a new value | `openssl rand -hex 32`. Update Vercel env AND `gh secret set CRON_SECRET` for the GitHub Actions cron |
+| `QSTASH_*_SIGNING_KEY` | Upstash dashboard → QStash | Rotate, update Vercel env |
+| `RL_KEY` (Rooflink) | Ask Israel | Update Vercel env |
 
-### "The dashboard briefing is empty / says 'Fetch latest news'"
+After any rotation, redeploy: `vercel --prod --yes`.
 
-That's the State A CTA — there's no `Briefing` row yet for this tenant.
-Either:
-- Click the orange "Fetch latest news" button → generates one immediately, OR
-- Wait for the next 7am Central run of the QStash `generate-briefings` schedule.
-
-### "Auth says 'Server error / Configuration'"
-
-Auth.js can't decrypt a session. Common causes:
-- `AUTH_SECRET` mismatch between local and Vercel
-- `AUTH_SECRET` is shorter than 32 chars
-- Cookie domain mismatch (rare; only after a domain change)
-
-Fix: regenerate `AUTH_SECRET`, set it on Vercel + locally, redeploy.
-
-### "Push to `.github/workflows/*` fails with 'workflow scope'"
-
-The `gh` CLI token doesn't have `workflow` scope. Refresh:
+### Rotate the vera_app DB password
 
 ```bash
-gh auth refresh -h github.com -s workflow
+NEW_PWD=$(openssl rand -base64 32 | tr -d '/+=\n')
+
+# Update the role
+PGPASSWORD='<postgres-admin-pwd>' psql "host=34.56.121.151 port=5432 user=postgres dbname=postgres sslmode=require" \
+  -c "ALTER USER vera_app WITH PASSWORD '${NEW_PWD}';"
+
+# Update Vercel
+NEW_URL="postgresql://vera_app:${NEW_PWD}@34.56.121.151:5432/vera_prod?sslmode=require"
+vercel env rm DATABASE_URL production -y
+printf '%s\n' "$NEW_URL" | vercel env add DATABASE_URL production
+vercel env rm DATABASE_URL_UNPOOLED production -y
+printf '%s\n' "$NEW_URL" | vercel env add DATABASE_URL_UNPOOLED production
+
+# Redeploy to pick it up
+vercel --prod --yes
+
+# Verify
+unset NEW_PWD NEW_URL
 ```
 
-Then retry the push.
+Total downtime: zero — the new deployment goes live with the new
+credentials before the old one is torn down.
 
-### "Force-push rejected with 'stale info'"
+---
 
-Your local view of the remote ref is out of date. Refresh + retry:
+## Troubleshooting
 
-```bash
-git fetch origin <branch>
-git push --force origin <branch>
+### Diagnosing a stuck backfill
+
+A `BackfillRun` is "stuck" if `status=running` and `claimedAt` is more than
+a few minutes old. The tick worker should be advancing or releasing the
+claim every tick.
+
+```sql
+SELECT id, source, status, "itemsProcessed", "itemsTotal",
+       "consecutiveErrors", "lastError",
+       NOW() - "claimedAt" AS time_since_last_claim,
+       NOW() - "startedAt" AS time_since_start
+FROM "BackfillRun"
+WHERE status = 'running'
+ORDER BY id DESC;
 ```
 
-Use `--force-with-lease` instead of `--force` whenever the remote should not
-have moved beyond what you saw.
+**Common causes:**
 
-### "Vercel deploy fails: Edge Function size 1.02 MB > 1 MB limit"
+| Symptom | Cause | Fix |
+|---|---|---|
+| `time_since_last_claim > 5 min`, `consecutiveErrors = 0` | QStash didn't redeliver the tick | Manually publish a tick: `POST /api/backfills/[source]/runs/[id]` is one option, or `vercel logs` to see what happened |
+| `consecutiveErrors > 0`, `lastError` is a 5xx from Rooflink | Rooflink WAF throttling | Wait and let exponential backoff catch up. After 5 consecutive errors the run auto-fails. |
+| `consecutiveErrors > 0`, `lastError` mentions auth | `RL_KEY` is stale | Rotate the Rooflink key |
+| Stuck >30 min with no progress | Truly wedged | Cancel via `POST /api/backfills/[source]/runs/[id]/cancel`, start a fresh Run-now |
 
-Something pulled Prisma (or another large dep) into the Edge runtime via
-middleware. Verify `apps/web/middleware.ts` only imports from
-`@/lib/auth.config` (the lightweight config), never from `@/lib/auth` (which
-imports the DB). See the `fix(auth)` commit for the canonical split.
+### Why didn't my dashboard data update?
+
+Quick checklist:
+
+1. **Is the latest run promoted?**
+   ```sql
+   SELECT id, source, status, promoted FROM "BackfillRun" ORDER BY id DESC LIMIT 5;
+   ```
+   If `promoted=false`, the merge view ignores the run. Only completes that
+   reach `promoted=true` become live.
+
+2. **Did `lastSyncedAt` advance on the schedule?**
+   ```sql
+   SELECT source, "lastSyncedAt", "lastFullSyncAt" FROM "BackfillSchedule";
+   ```
+   If not, the next incremental will re-fetch from the old watermark — fine,
+   just slower than expected.
+
+3. **Has your function instance cached the previous snapshot?** The in-memory
+   cache is keyed by promoted-run-ids, so a new promote busts it. But cold
+   instances need a request before they warm up. Hit the dashboard once;
+   subsequent requests should be fast.
+
+4. **Is `USE_DB_DATA_SOURCE` actually `1`?**
+   ```bash
+   vercel env ls production | grep USE_DB
+   ```
+   If `0`, you're on the JSON snapshot path which is frozen at `May 5, 2026`.
+
+### Common Vercel deploy failures
+
+Pre-existing reference table in [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md)
+under "Common build issues". The biggest one for this project: never deploy
+from a worktree.
+
+---
+
+## When to ask before doing anything
+
+Default to asking if you're about to:
+
+- `DELETE` or `UPDATE` more than a single row on **any** database.
+- Drop a column, table, or index.
+- Run `prisma migrate reset` against a DB that has any rows.
+- Rotate a secret while a release is in flight.
+- Push to `main` without testing locally.
+- Set `PLAYWRIGHT_ALLOW_PROD_DATA_WIPE=1` (you almost certainly don't want this).
+
+The cost of asking is 30 seconds. The cost of an unintended wipe is hours
+of re-fetching from Rooflink.

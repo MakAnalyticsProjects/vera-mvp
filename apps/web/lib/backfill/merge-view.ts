@@ -3,23 +3,29 @@ import { db } from '@/lib/db';
 import type { BackfillSource } from './sources';
 
 /**
- * Merge view — "the latest live snapshot" of a Rooflink source, computed
- * from every promoted BackfillRun.
+ * Merge view — "the latest live snapshot" of a Rooflink source.
  *
- * With full-only syncs (V1), exactly one run is promoted at a time and
- * reading it directly was fine. Incremental sync (V2) keeps a chain of
- * promoted runs — one full + N incrementals — so the live snapshot is
- * "latest row per natural key across all promoted versions".
+ * Read architecture (post LiveJob materialized view, 2026-05-15):
+ *   • `getLiveARJobsWithContext` and `getLiveJobsForWriteOffs` read from
+ *     the `LiveJob` materialized view (see `prisma/migrations/2026.../
+ *     add_livejob_materialized_view`). LiveJob holds one row per
+ *     (tenantId, rooflinkId), already deduplicated across the promoted
+ *     run chain, with the AR/write-offs filter fields and the
+ *     duplicate-address count extracted as proper columns + indexes.
+ *     The hot read path is a partial-index lookup — no JSONB parsing.
+ *   • `getLiveJobs` / `getLiveLineItems` still go directly against
+ *     `RawRooflinkJob` / `RawRooflinkLineItems` with a `DISTINCT ON` —
+ *     they're used by backfill diagnostics and the line-items join, not
+ *     by the user-facing dashboard hot path.
  *
- * Postgres makes this efficient with `DISTINCT ON ... ORDER BY ... DESC`:
- * for each natural key, return the row with the highest dataVersion among
- * promoted runs. Indexed on `(dataVersion)` and `(source, promoted)` so the
- * planner can prune aggressively.
+ * Refresh: the tick worker calls `REFRESH MATERIALIZED VIEW CONCURRENTLY
+ * "LiveJob"` after each non-empty `rooflink_jobs` promote (see
+ * `tick-worker.ts → promote()`). CONCURRENTLY keeps the view readable
+ * during the refresh.
  *
- * NOTE: this module is NOT yet wired into the dashboard API routes — those
- * still read `generated.json`. It's the foundation for the JSON-to-DB
- * cutover work, kept here so the incremental sync changes don't depend on
- * that cutover landing first.
+ * If LiveJob ever needs to be reshaped, the definition lives in one
+ * place: the migration SQL. RawRooflinkJob remains the source of truth,
+ * so drop-and-recreate of LiveJob is safe and loses no data.
  */
 
 export interface RawJobRow {
@@ -32,6 +38,27 @@ export interface RawJobRow {
 export interface RawLineItemsRow {
   estimateId: string;
   dataVersion: number;
+  payload: unknown;
+  fetchedAt: Date;
+}
+
+/** A row from {@link getLiveARJobsWithContext}: an AR-eligible job plus the
+ * cross-population context the domain transform needs (currently just the
+ * duplicate-address count, since that's the only anomaly that crosses jobs).
+ *
+ * The SQL applies the AR working-set filter (`isInARWorkingSet` from
+ * `@vera/domain/classification`) so the result is already narrowed — Node
+ * never sees the ~120,000-row full population. */
+export interface ARJobContextRow {
+  payload: unknown;
+  addressCount: number;
+  fetchedAt: Date;
+}
+
+/** A row from {@link getLiveJobsForWriteOffs}: a job that has a
+ * primary_estimate.id AND a non-null `date_completed` >= `installDateCutoff`.
+ * Drops the ~120k-row population to ~400 rows server-side. */
+export interface WriteOffJobRow {
   payload: unknown;
   fetchedAt: Date;
 }
@@ -68,6 +95,75 @@ export async function getLiveLineItems(tenantId: number): Promise<RawLineItemsRo
     FROM "RawRooflinkLineItems"
     WHERE "dataVersion" = ANY(${promotedVersions})
     ORDER BY "estimateId", "dataVersion" DESC
+  `;
+}
+
+/**
+ * AR working-set snapshot, read from the LiveJob materialized view.
+ *
+ * LiveJob is one row per (tenantId, rooflinkId), already deduped across the
+ * promoted version chain. The AR filter columns (`dateCompleted`, `balance`,
+ * `excludeFromQb`) and the duplicate-address count (`addressDupCount`) are
+ * stored as proper columns, so this query is a pure partial-index lookup —
+ * no JSONB parsing on the hot path, no DISTINCT ON, no cross-row aggregation.
+ *
+ * Measured: ~1 ms cold (vs ~1200 ms reading from RawRooflinkJob via JSONB).
+ * The cost shifted to `REFRESH MATERIALIZED VIEW CONCURRENTLY "LiveJob"` in
+ * `tick-worker.ts → promote()`, which runs on the backfill worker, off the
+ * user-facing request path.
+ *
+ * NB: the AR filter logic MUST stay in sync with
+ * `shared/domain/src/classification.ts → isInARWorkingSet`. If that function
+ * changes, the partial-index predicate in the migration changes too.
+ */
+export async function getLiveARJobsWithContext(
+  tenantId: number,
+): Promise<ARJobContextRow[]> {
+  return db.$queryRaw<ARJobContextRow[]>`
+    SELECT
+      payload,
+      "addressDupCount" AS "addressCount",
+      "fetchedAt"
+    FROM "LiveJob"
+    WHERE "tenantId" = ${tenantId}
+      AND "dateCompleted" IS NOT NULL
+      AND balance > 0
+      AND "excludeFromQb" = false
+  `;
+}
+
+/**
+ * Write-offs snapshot, narrowed in SQL.
+ *
+ * The write-offs dashboard scope is "all-estimates with install_date >=
+ * cutoff" — broader than the AR working set (per the May 13 broadening), but
+ * still much narrower than the full 120k-row population. Pushes the date
+ * cutoff and the `primary_estimate.id IS NOT NULL` filter into Postgres so we
+ * transfer ~400-500 rows instead of all 120k.
+ *
+ * `installDateCutoff` should match the `INSTALL_DATE_CUTOFF` constant in
+ * `apps/web/lib/write-offs-data.ts` so the two scopes agree.
+ */
+export async function getLiveJobsForWriteOffs(
+  tenantId: number,
+  installDateCutoff: string | null,
+): Promise<WriteOffJobRow[]> {
+  // Read from LiveJob: one row per (tenant, rooflinkId), with the write-offs
+  // filter columns (`primaryEstimateId`, `dateCompleted`) extracted. The
+  // partial index `LiveJob_writeoff_partial_idx` makes the predicate a
+  // pure index lookup.
+  return db.$queryRaw<WriteOffJobRow[]>`
+    SELECT payload, "fetchedAt"
+    FROM "LiveJob"
+    WHERE "tenantId" = ${tenantId}
+      AND "primaryEstimateId" IS NOT NULL
+      AND (
+        ${installDateCutoff}::text IS NULL
+        OR (
+          "dateCompleted" IS NOT NULL
+          AND "dateCompleted" >= ${installDateCutoff}::date
+        )
+      )
   `;
 }
 

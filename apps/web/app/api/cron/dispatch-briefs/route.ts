@@ -116,13 +116,31 @@ export async function POST(req: Request) {
         return;
       }
 
+      if (sch.recipients.length === 0) {
+        await recordAudit(db, {
+          tenantId: sch.tenantId,
+          userId: null,
+          userEmail: null,
+          category: 'brief',
+          action: 'send_failed',
+          summary: `Scheduled ${sch.cadence} brief skipped — no recipients configured`,
+          details: { scheduleId: sch.id, cadence: sch.cadence },
+        });
+        results.push({
+          scheduleId: sch.id,
+          status: 'failed',
+          error: 'no_recipients',
+        });
+        return;
+      }
+
       // ── Step 2: We own this dispatch. Fire the email. ─────────────
       let outcome:
         | { status: 'sent'; resendId?: string; pdfBytes?: number }
         | { status: 'failed'; error: string };
       try {
         const r = await sendBrief({
-          to: sch.recipient,
+          to: sch.recipients,
           cadence: sch.cadence as Cadence,
           tenantId: sch.tenantId,
         });
@@ -150,7 +168,7 @@ export async function POST(req: Request) {
           tenantId: sch.tenantId,
           scheduleId: sch.id,
           cadence: sch.cadence,
-          toEmail: sch.recipient,
+          toEmails: sch.recipients,
           resendId: outcome.status === 'sent' ? outcome.resendId : undefined,
           pdfBytes: outcome.status === 'sent' ? outcome.pdfBytes : undefined,
           status: outcome.status,
@@ -159,6 +177,10 @@ export async function POST(req: Request) {
         },
       });
 
+      const recipientsLabel =
+        sch.recipients.length === 1
+          ? sch.recipients[0]
+          : `${sch.recipients.length} recipients`;
       await recordAudit(db, {
         tenantId: sch.tenantId,
         userId: null,
@@ -169,12 +191,12 @@ export async function POST(req: Request) {
         entityId: String(sendLog.id),
         summary:
           outcome.status === 'sent'
-            ? `Scheduled ${sch.cadence} brief sent to ${sch.recipient}`
-            : `Scheduled ${sch.cadence} brief to ${sch.recipient} failed`,
+            ? `Scheduled ${sch.cadence} brief sent to ${recipientsLabel}`
+            : `Scheduled ${sch.cadence} brief to ${recipientsLabel} failed`,
         details: {
           scheduleId: sch.id,
           cadence: sch.cadence,
-          recipient: sch.recipient,
+          recipients: sch.recipients,
           outcome,
         },
       });

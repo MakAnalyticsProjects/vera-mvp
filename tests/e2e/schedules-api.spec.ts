@@ -19,7 +19,7 @@ test.describe('/api/schedules', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'developer@levich.co',
+        recipients: ['developer@levich.co'],
       },
     });
     expect(put.status()).toBe(401);
@@ -44,7 +44,7 @@ test.describe('/api/schedules', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'developer@levich.co',
+        recipients: ['developer@levich.co'],
         enabled: true,
       },
     });
@@ -55,7 +55,7 @@ test.describe('/api/schedules', () => {
       cadence: 'daily',
       timeLocal: '08:00',
       timezone: 'America/Chicago',
-      recipient: 'developer@levich.co',
+      recipients: ['developer@levich.co'],
       enabled: true,
       tenantId: 1,
     });
@@ -85,7 +85,7 @@ test.describe('/api/schedules', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'aditya@example.com',
+        recipients: ['aditya@example.com'],
         enabled: true,
       },
     });
@@ -96,7 +96,7 @@ test.describe('/api/schedules', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'nanda@example.com',
+        recipients: ['nanda@example.com'],
         enabled: true,
       },
     });
@@ -104,7 +104,7 @@ test.describe('/api/schedules', () => {
     const secondRow = (await readJson(second)).schedule;
 
     expect(secondRow.id).toBe(firstRow.id);
-    expect(secondRow.recipient).toBe('nanda@example.com');
+    expect(secondRow.recipients[0]).toBe('nanda@example.com');
 
     // Timing fields unchanged → nextRunAt should be preserved.
     expect(secondRow.nextRunAt).toBe(firstRow.nextRunAt);
@@ -112,7 +112,7 @@ test.describe('/api/schedules', () => {
     const list = await readJson(await context.request.get('/api/schedules'));
     const daily = list.schedules.filter((s: { cadence: string }) => s.cadence === 'daily');
     expect(daily).toHaveLength(1);
-    expect(daily[0].recipient).toBe('nanda@example.com');
+    expect(daily[0].recipients[0]).toBe('nanda@example.com');
 
     await context.request.delete('/api/schedules/daily');
     await context.close();
@@ -132,7 +132,7 @@ test.describe('/api/schedules', () => {
           data: {
             timeLocal: '08:00',
             timezone: 'America/Chicago',
-            recipient: 'developer@levich.co',
+            recipients: ['developer@levich.co'],
             enabled: true,
           },
         }),
@@ -145,7 +145,7 @@ test.describe('/api/schedules', () => {
           data: {
             timeLocal: '17:00',
             timezone: 'America/Chicago',
-            recipient: 'developer@levich.co',
+            recipients: ['developer@levich.co'],
             enabled: true,
           },
         }),
@@ -170,7 +170,7 @@ test.describe('/api/schedules', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'developer@levich.co',
+        recipients: ['developer@levich.co'],
         enabled: true,
       },
     });
@@ -197,7 +197,7 @@ test.describe('/api/schedules', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'developer@levich.co',
+        recipients: ['developer@levich.co'],
       },
     });
     expect(put.status()).toBe(400);
@@ -213,7 +213,7 @@ test.describe('/api/schedules', () => {
       data: {
         timeLocal: '25:00', // not a valid time
         timezone: '',
-        recipient: 'not-an-email',
+        recipients: ['not-an-email'],
       },
     });
     expect(put.status()).toBe(400);

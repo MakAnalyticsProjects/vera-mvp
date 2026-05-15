@@ -13,7 +13,13 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 const RequestSchema = z.object({
-  to: z.string().email(),
+  to: z
+    .array(z.string().email())
+    .min(1, 'Add at least one recipient')
+    .max(6, 'At most 6 recipients')
+    .transform((arr) =>
+      Array.from(new Set(arr.map((s) => s.trim().toLowerCase()))),
+    ),
   /** ISO 8601 UTC timestamp, must be in the future. Absent = send now. */
   sendAt: z
     .string()
@@ -93,7 +99,7 @@ function markdownToHtml(
  * protection on hashed preview URLs).
  */
 export type SendBriefInput = {
-  to: string;
+  to: string[];
   sendAt?: string;
   cadence?: 'daily' | 'weekly' | 'monthly';
   /** Tenant whose snapshot to read. HTTP route resolves it from the session;
@@ -210,6 +216,11 @@ export async function POST(req: Request) {
 
     const result = await sendBrief({ ...parsed.data, tenantId: audit.tenantId });
 
+    const toSummary =
+      parsed.data.to.length === 1
+        ? parsed.data.to[0]
+        : `${parsed.data.to.length} recipients`;
+
     if (!result.ok) {
       // Record the failure too — useful trail when the operator wonders
       // why their Send Now didn't land.
@@ -219,7 +230,7 @@ export async function POST(req: Request) {
         userEmail: audit.userEmail,
         category: 'brief',
         action: 'send_failed',
-        summary: `Send Now to ${parsed.data.to} failed: ${result.code}`,
+        summary: `Send Now to ${toSummary} failed: ${result.code}`,
         details: { request: parsed.data, error: result },
       });
       return NextResponse.json(
@@ -237,7 +248,7 @@ export async function POST(req: Request) {
       action: 'sent_now',
       entityType: 'SendLog',
       entityId: result.id,
-      summary: `Sent ${cadence} brief to ${parsed.data.to} (PDF ${(result.pdfBytes / 1024).toFixed(1)} KB)`,
+      summary: `Sent ${cadence} brief to ${toSummary} (PDF ${(result.pdfBytes / 1024).toFixed(1)} KB)`,
       details: {
         to: parsed.data.to,
         cadence,

@@ -7,7 +7,8 @@ export type EmailAttachment = {
 };
 
 export type SendEmailInput = {
-  to: string;
+  to: string | string[];
+  cc?: string[];
   subject: string;
   html: string;
   attachments?: EmailAttachment[];
@@ -41,6 +42,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const { error, data } = await client.emails.send({
     from: FROM,
     to: input.to,
+    ...(input.cc && input.cc.length > 0 ? { cc: input.cc } : {}),
     subject: input.subject,
     html: input.html,
     attachments: input.attachments,

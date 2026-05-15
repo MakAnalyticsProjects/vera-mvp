@@ -33,6 +33,7 @@ test.describe('Backfill API', () => {
           dayOfWeek: 1,
           timeLocal: '03:00',
           timezone: 'America/Chicago',
+          recipients: ['ops@example.com'],
           enabled: true,
         },
       },
@@ -53,6 +54,7 @@ test.describe('Backfill API', () => {
         cadence: 'daily',
         timeLocal: '04:00',
         timezone: 'America/Chicago',
+        recipients: ['ops@example.com'],
         enabled: true,
       },
     });

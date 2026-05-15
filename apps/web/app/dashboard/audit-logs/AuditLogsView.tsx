@@ -571,7 +571,104 @@ function CategoryDetailBody({ entry }: { entry: AuditLogEntry }) {
   if (entry.category === 'chat') return <ChatBody entry={entry} />;
   if (entry.category === 'auth') return <AuthBody entry={entry} />;
   if (entry.category === 'backfill') return <BackfillBody entry={entry} />;
+  if (entry.category === 'follow_up') return <FollowUpBody entry={entry} />;
   return null;
+}
+
+function FollowUpBody({ entry }: { entry: AuditLogEntry }) {
+  const d = (entry.details ?? {}) as {
+    jobId?: number | string;
+    jobAddress?: string;
+    repName?: string;
+    to?: string[];
+    cc?: string[];
+    subject?: string;
+    body?: string;
+    resendId?: string;
+    error?: { code?: string; message?: string };
+  };
+  const recipients = (list: string[] | undefined) =>
+    !list || list.length === 0 ? '—' : list.join(', ');
+
+  if (entry.action === 'send_failed') {
+    const err = d.error?.message ?? d.error?.code ?? 'Unknown error';
+    return (
+      <div className="space-y-3">
+        <div className="border-heat-critical/40 bg-heat-critical/5 rounded-xl border px-3 py-2">
+          <p className="text-text-primary text-xs">{err}</p>
+        </div>
+        <div className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+          <DetailLabel>Attempted to</DetailLabel>
+          <DetailValue>{recipients(d.to)}</DetailValue>
+          {d.cc && d.cc.length > 0 ? (
+            <>
+              <DetailLabel>Cc</DetailLabel>
+              <DetailValue>{recipients(d.cc)}</DetailValue>
+            </>
+          ) : null}
+          {d.subject ? (
+            <>
+              <DetailLabel>Subject</DetailLabel>
+              <DetailValue>{d.subject}</DetailValue>
+            </>
+          ) : null}
+          {d.jobAddress ? (
+            <>
+              <DetailLabel>Job</DetailLabel>
+              <DetailValue>{d.jobAddress}</DetailValue>
+            </>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+        <DetailLabel>To</DetailLabel>
+        <DetailValue>{recipients(d.to)}</DetailValue>
+        {d.cc && d.cc.length > 0 ? (
+          <>
+            <DetailLabel>Cc</DetailLabel>
+            <DetailValue>{recipients(d.cc)}</DetailValue>
+          </>
+        ) : null}
+        {d.subject ? (
+          <>
+            <DetailLabel>Subject</DetailLabel>
+            <DetailValue>{d.subject}</DetailValue>
+          </>
+        ) : null}
+        {d.jobAddress ? (
+          <>
+            <DetailLabel>Job</DetailLabel>
+            <DetailValue>{d.jobAddress}</DetailValue>
+          </>
+        ) : null}
+        {d.repName ? (
+          <>
+            <DetailLabel>Rep</DetailLabel>
+            <DetailValue>{d.repName}</DetailValue>
+          </>
+        ) : null}
+        {d.resendId ? (
+          <>
+            <DetailLabel>Resend ID</DetailLabel>
+            <DetailValue className="font-mono text-[11px]">{d.resendId}</DetailValue>
+          </>
+        ) : null}
+      </div>
+      {d.body ? (
+        <div>
+          <DetailLabel>Body</DetailLabel>
+          <pre className="text-text-primary border-border bg-bg-base/60 mt-1.5 max-h-72 overflow-y-auto rounded-xl border px-3 py-2.5 font-sans text-xs leading-relaxed whitespace-pre-wrap">
+            {d.body}
+          </pre>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function BackfillBody({ entry }: { entry: AuditLogEntry }) {
@@ -723,8 +820,27 @@ type BackfillScheduleSnapshot = {
   timezone: string;
   dayOfWeek?: number | null;
   dayOfMonth?: string | null;
+  recipients?: string[];
   enabled: boolean;
 };
+
+function recipientsLabel(list: readonly string[] | undefined): string {
+  if (!list || list.length === 0) return '—';
+  if (list.length === 1) return list[0] ?? '—';
+  return list.join(', ');
+}
+
+function recipientsEqual(
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean {
+  const la = a ?? [];
+  const lb = b ?? [];
+  if (la.length !== lb.length) return false;
+  const sa = [...la].sort();
+  const sb = [...lb].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
 
 function ScheduleBody({ entry }: { entry: AuditLogEntry }) {
   const d = (entry.details ?? {}) as { before?: Schedule | null; after?: Schedule | null };
@@ -734,8 +850,12 @@ function ScheduleBody({ entry }: { entry: AuditLogEntry }) {
   if (entry.action === 'updated' && before && after) {
     // Diff table — only show fields that changed.
     const rows: Array<[string, string, string]> = [];
-    if (before.recipient !== after.recipient)
-      rows.push(['Recipient', before.recipient, after.recipient]);
+    if (!recipientsEqual(before.recipients, after.recipients))
+      rows.push([
+        'Recipients',
+        recipientsLabel(before.recipients),
+        recipientsLabel(after.recipients),
+      ]);
     if (before.timeLocal !== after.timeLocal)
       rows.push(['Time', before.timeLocal, after.timeLocal]);
     if ((before.dayOfWeek ?? null) !== (after.dayOfWeek ?? null))
@@ -760,8 +880,8 @@ function ScheduleBody({ entry }: { entry: AuditLogEntry }) {
     <div className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
       <DetailLabel>Cadence</DetailLabel>
       <DetailValue>{snapshot.cadence}</DetailValue>
-      <DetailLabel>Recipient</DetailLabel>
-      <DetailValue>{snapshot.recipient}</DetailValue>
+      <DetailLabel>Recipients</DetailLabel>
+      <DetailValue>{recipientsLabel(snapshot.recipients)}</DetailValue>
       <DetailLabel>Time</DetailLabel>
       <DetailValue>
         {snapshot.timeLocal} {snapshot.timezone}
@@ -786,15 +906,20 @@ function ScheduleBody({ entry }: { entry: AuditLogEntry }) {
 
 function BriefBody({ entry }: { entry: AuditLogEntry }) {
   const d = (entry.details ?? {}) as {
-    to?: string;
+    to?: string | string[];
     cadence?: string;
     subject?: string;
     pdfBytes?: number;
     resendId?: string;
     recipient?: string;
+    recipients?: string[];
     outcome?: { status?: string; resendId?: string; pdfBytes?: number };
     error?: { code?: string; message?: string } | string;
-    request?: { to?: string };
+    request?: { to?: string | string[] };
+  };
+  const renderTo = (v: string | string[] | undefined): string => {
+    if (Array.isArray(v)) return v.length === 0 ? '—' : v.join(', ');
+    return v ?? '—';
   };
   if (entry.action === 'send_failed') {
     const err =
@@ -808,14 +933,14 @@ function BriefBody({ entry }: { entry: AuditLogEntry }) {
         </div>
         {d.request?.to ? (
           <div className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
-            <DetailLabel>Attempted recipient</DetailLabel>
-            <DetailValue>{d.request.to}</DetailValue>
+            <DetailLabel>Attempted recipients</DetailLabel>
+            <DetailValue>{renderTo(d.request.to)}</DetailValue>
           </div>
         ) : null}
       </div>
     );
   }
-  const to = d.to ?? d.recipient ?? '—';
+  const to = renderTo(d.to ?? d.recipients ?? d.recipient);
   const pdfBytes = d.pdfBytes ?? d.outcome?.pdfBytes;
   const resendId = d.resendId ?? d.outcome?.resendId;
   return (
@@ -1085,7 +1210,7 @@ function DiffTable({
 
 type Schedule = {
   cadence: string;
-  recipient: string;
+  recipients: string[];
   timeLocal: string;
   timezone: string;
   dayOfWeek?: number | null;

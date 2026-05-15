@@ -73,6 +73,7 @@ test.describe('Backfill incremental sync API', () => {
         dayOfWeek: 1,
         timeLocal: '03:00',
         timezone: 'America/Chicago',
+        recipients: ['ops@example.com'],
         enabled: true,
       },
     });

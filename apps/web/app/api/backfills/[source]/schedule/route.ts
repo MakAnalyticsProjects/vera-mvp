@@ -26,8 +26,28 @@ const PutBodySchema = z.object({
   dayOfMonth: z.string().nullable().optional(),
   timeLocal: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   timezone: z.string().min(1),
+  recipients: z
+    .array(z.string().email())
+    .min(1, 'Add at least one recipient')
+    .max(6, 'At most 6 recipients')
+    .transform((arr) =>
+      Array.from(new Set(arr.map((s) => s.trim().toLowerCase()))),
+    ),
   enabled: z.boolean().default(true),
 });
+
+function summarizeRecipients(list: readonly string[]): string {
+  if (list.length === 0) return 'no recipients';
+  if (list.length <= 3) return list.join(', ');
+  return `${list.length} recipients (${list.slice(0, 2).join(', ')}, …)`;
+}
+
+function recipientsEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
 
 function snapTo15Min(hhmm: string): string {
   const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
@@ -115,6 +135,7 @@ export async function PUT(req: Request, ctx: RouteContext) {
         dayOfMonth,
         timeLocal,
         timezone: parsed.data.timezone,
+        recipients: parsed.data.recipients,
         enabled: parsed.data.enabled,
         nextRunAt,
       },
@@ -124,6 +145,7 @@ export async function PUT(req: Request, ctx: RouteContext) {
         dayOfMonth,
         timeLocal,
         timezone: parsed.data.timezone,
+        recipients: parsed.data.recipients,
         enabled: parsed.data.enabled,
         nextRunAt,
       },
@@ -139,7 +161,7 @@ export async function PUT(req: Request, ctx: RouteContext) {
     const label = sourceLabel(source);
     if (!existing) {
       action = 'schedule_created';
-      summary = `${label} backfill scheduled (${parsed.data.cadence})`;
+      summary = `${label} backfill scheduled (${parsed.data.cadence}) → ${summarizeRecipients(saved.recipients)}`;
     } else if (existing.enabled && !saved.enabled) {
       action = 'schedule_paused';
       summary = `${label} backfill paused`;
@@ -157,6 +179,8 @@ export async function PUT(req: Request, ctx: RouteContext) {
         changes.push(`day of week → ${saved.dayOfWeek}`);
       if ((existing.dayOfMonth ?? null) !== (saved.dayOfMonth ?? null))
         changes.push(`day of month → ${saved.dayOfMonth}`);
+      if (!recipientsEqual(existing.recipients, saved.recipients))
+        changes.push(`recipients → ${summarizeRecipients(saved.recipients)}`);
       summary = changes.length
         ? `${label} backfill: ${changes.join(', ')}`
         : `${label} backfill updated`;

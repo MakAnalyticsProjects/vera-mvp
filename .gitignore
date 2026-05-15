@@ -21,6 +21,9 @@ data/generated.json
 .env
 .env.local
 .env.*.local
+# Production secrets recovery copy — see CLAUDE.md "Production environment".
+# This file MUST stay out of git and out of the Vercel upload.
+.env.prod
 
 # misc
 .DS_Store

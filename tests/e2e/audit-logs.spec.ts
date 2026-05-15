@@ -38,7 +38,7 @@ test.describe('Audit log page', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'ui-test@example.com',
+        recipients: ['ui-test@example.com'],
         enabled: true,
       },
     });
@@ -63,7 +63,7 @@ test.describe('Audit log page', () => {
       data: {
         timeLocal: '08:00',
         timezone: 'America/Chicago',
-        recipient: 'cat-filter@example.com',
+        recipients: ['cat-filter@example.com'],
         enabled: true,
       },
     });

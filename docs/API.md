@@ -1,42 +1,71 @@
-# Vera — API reference
+# API reference
 
 Every HTTP route in `apps/web/app/api/`, with the auth gate, request
-shape, and response shape that's actually deployed today.
+shape, and response shape that's deployed today.
 
-> Last updated: May 8, 2026.
+> Last updated: 2026-05-14
 
 ---
 
 ## Quick map
 
+### Dashboard data (DB-backed)
+
 | Route | Method | Auth | Purpose |
 |---|---|---|---|
-| [`/api/auth/[...nextauth]`](#authnextauth) | `*` | n/a | Auth.js handlers |
-| [`/api/chat`](#chat) | POST | Session cookie | Streams chat responses |
-| [`/api/jobs/aging`](#jobsaging) | GET | open | Aging buckets + anomaly side panel |
-| [`/api/jobs/milestones`](#jobsmilestones) | GET | open | Milestone-gap report |
-| [`/api/jobs/follow-ups`](#jobsfollow-ups) | GET | open | Hot queue + executive review queue |
-| [`/api/jobs/reconciliation`](#jobsreconciliation) | GET | open | "Fell through cracks" list |
-| [`/api/reps/outstanding`](#repsoutstanding) | GET | open | Per-rep leaderboard |
-| [`/api/briefings/regenerate`](#briefingsregenerate) | POST | Session cookie | Generate a fresh AI dashboard briefing |
-| [`/api/briefings/preview`](#briefingspreview) | GET | open | DB-free smoke check |
-| [`/api/schedules`](#schedules) | GET | Session cookie | List this tenant's schedules |
-| [`/api/schedules/[cadence]`](#schedulescadence) | PUT / DELETE | Session cookie | Upsert or remove the schedule for `daily` / `weekly` / `monthly` |
-| [`/api/brief/send`](#briefsend) | POST | Session cookie | One-shot Send Now |
-| [`/api/audit-logs`](#audit-logs) | GET | Session cookie | Activity stream — every meaningful action in this tenant |
-| [`/api/cron/dispatch-briefs`](#croncron-dispatch-briefs) | POST | QStash signature (+ bearer fallback) | Cron worker — fires due schedules |
-| [`/api/cron/generate-briefings`](#croncron-generate-briefings) | POST | QStash signature (+ bearer fallback) | Cron worker — daily AI briefing per tenant |
+| `/api/jobs/aging` | GET | `withAuth` | Aging buckets + anomalies for the AR working set |
+| `/api/jobs/milestones` | GET | `withAuth` | Per-job missing-milestone report |
+| `/api/jobs/follow-ups` | GET | `withAuth` | Hot queue + Executive Review queue |
+| `/api/jobs/reconciliation` | GET | `withAuth` | "Fell through cracks" list |
+| `/api/jobs/write-offs` | GET | `withAuth` | Estimates with Amount Withheld discounts (Active AR + Paid off) |
+| `/api/reps/outstanding` | GET | `withAuth` | Per-rep leaderboard |
+
+All read from Postgres at request time via `lib/data.ts` / `lib/write-offs-data.ts` → `lib/backfill/merge-view.ts`.
+
+### Briefings + scheduled sends
+
+| Route | Method | Auth | Purpose |
+|---|---|---|---|
+| `/api/briefings/regenerate` | POST | `withAuth` | Generate a fresh AI dashboard briefing on demand |
+| `/api/briefings/preview` | GET | open | DB-free smoke check |
+| `/api/brief/send` | POST | `withAuth` | Send a brief now (immediate Resend) |
+| `/api/schedules` | GET | `withAuth` | List this tenant's brief schedules |
+| `/api/schedules/[cadence]` | PUT / DELETE | `withAuth` | Upsert or remove the schedule for `daily` / `weekly` / `monthly` |
+| `/api/notifications` | GET / PUT | `withAuth` | Tenant's ops email for failure notifications |
+
+### Backfill pipeline
+
+| Route | Method | Auth | Purpose |
+|---|---|---|---|
+| `/api/backfills` | GET | `withAuth` | List schedules + latest run summary per source |
+| `/api/backfills/active` | GET | `withAuth` | Currently in-flight runs (poll target for progress UI) |
+| `/api/backfills/[source]/schedule` | PUT / DELETE | `withAuth` | Upsert or remove the recurring backfill schedule for `rooflink_jobs` / `rooflink_lineitems` |
+| `/api/backfills/[source]/runs` | POST | `withAuth` | Start a Run-now backfill (auto-picks incremental if prior runs exist; `?mode=full` to force) |
+| `/api/backfills/[source]/runs/[id]/cancel` | POST | `withAuth` | Cancel an in-flight run |
+| `/api/backfills/[source]/runs/[id]/sync-summary` | GET | `withAuth` | Regenerate the post-sync PDF on demand (returns `application/pdf`) |
+
+### Auth + audit
+
+| Route | Method | Auth | Purpose |
+|---|---|---|---|
+| `/api/auth/[...nextauth]` | `*` | n/a | Auth.js handlers (sign-in, callback, sign-out, CSRF, session) |
+| `/api/audit-logs` | GET | `withAuth` | Activity stream — every meaningful action for this tenant |
+| `/api/dev/login` | GET | dev-only | Local-dev test cookie shortcut (returns 404 in production) |
+
+### Cron + AI
+
+| Route | Method | Auth | Purpose |
+|---|---|---|---|
+| `/api/chat` | POST | session cookie | Streams Anthropic Claude responses (Ask Vera) |
+| `/api/cron/dispatch-briefs` | POST | QStash signature (+ bearer fallback) | Cron worker — fires due brief schedules **and** due backfill schedules |
+| `/api/cron/generate-briefings` | POST | QStash signature (+ bearer fallback) | Cron worker — daily AI briefing generation per tenant |
+| `/api/cron/backfill-tick` | POST | QStash signature (+ bearer fallback) | Per-tick backfill worker — chained by QStash messages |
 
 **Auth legend:**
-- **open** — no auth check at the route level. Some routes still resolve
-  tenant from session if a cookie is present, but anonymous calls work.
-- **Session cookie** — `auth()` middleware. Returns 401 without a valid
-  Auth.js JWT cookie.
-- **QStash signature (+ bearer fallback)** — `lib/cron-auth.ts` verifies
-  the `upstash-signature` JWT against `QSTASH_CURRENT_SIGNING_KEY` /
-  `QSTASH_NEXT_SIGNING_KEY`. Also accepts a legacy
-  `Authorization: Bearer $CRON_SECRET` header for manual triggering.
-  Anything else returns 401.
+- **`withAuth`** — wraps the handler in `lib/auth-helpers.ts`. Reads the Auth.js JWT cookie, returns 401 if missing/invalid, and populates the `AsyncLocalStorage` audit context so DB mutations auto-log. Most routes use this.
+- **session cookie** — minimal `auth()` check, no audit context. Used by `/api/chat` (streaming response makes the AsyncLocalStorage dance awkward).
+- **open** — no auth at the route level. Returns the same data regardless of session.
+- **QStash signature (+ bearer fallback)** — `lib/cron-auth.ts` verifies the `upstash-signature` JWT against the rotating signing keys. Also accepts a `Authorization: Bearer $CRON_SECRET` header for manual triggering from the GitHub Actions cron (which doesn't sign requests).
 
 ---
 
@@ -54,10 +83,10 @@ Source: `apps/web/app/api/auth/[...nextauth]/route.ts`.
 
 `POST /api/chat`
 
-Streams gpt-4o-mini responses for the Ask Me chat panel. Tool-using:
-the model can call `listJobs`, `getJobDetails`, etc. to ground answers
-in real data. Implementation uses the Vercel AI SDK's `streamText` +
-tool-call loop.
+Streams Anthropic Claude (Sonnet 4.6) responses for the Ask Vera chat
+panel. Tool-using: the model can call `listJobs`, `getJobDetails`, etc.
+to ground answers in real data. Implementation uses the Vercel AI SDK's
+`streamText` + tool-call loop.
 
 **Auth:** session cookie required.
 

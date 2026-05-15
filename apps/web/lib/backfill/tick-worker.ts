@@ -14,6 +14,8 @@ import { recordAudit } from '@/lib/audit';
 import { invalidateDataSnapshot } from '@/lib/data';
 import { invalidateWriteOffsSnapshot } from '@/lib/write-offs-data';
 import { sanitizeBackfillError } from './error-display';
+import { buildSyncSummaryData } from '@/lib/sync-summary-data';
+import { renderSyncSummaryPDF } from '@/lib/sync-summary-pdf';
 
 /**
  * Core tick logic. Pure-ish wrapper that:
@@ -271,9 +273,51 @@ async function markFailed(runId: number, reason: string): Promise<void> {
 }
 
 /**
- * Email the tenant's user(s) when a run terminates in failure. Single-tenant
- * V1: there's one user per tenant; we send to all of them. No separately-
- * configured "ops email" — the logged-in user IS the recipient.
+ * Look up the configured recipient list for a (tenant, source) pair from
+ * `BackfillSchedule.recipients`. If none is configured (no schedule row, or
+ * empty list), emit a `backfill.notification_skipped_no_recipients` audit
+ * row so the gap is visible in the audit log, then return empty.
+ *
+ * This applies to BOTH scheduled and manual (Run-now) syncs — the recipient
+ * list is keyed on (tenant, source), not on who triggered the run.
+ */
+async function resolveSyncRecipients(
+  tenantId: number,
+  source: string,
+  runId: number,
+): Promise<string[]> {
+  const schedule = await db.backfillSchedule.findUnique({
+    where: { tenantId_source: { tenantId, source } },
+    select: { recipients: true },
+  });
+  const recipients = schedule?.recipients ?? [];
+  if (recipients.length === 0) {
+    try {
+      await recordAudit(db, {
+        tenantId,
+        userId: null,
+        userEmail: null,
+        category: 'backfill',
+        action: 'notification_skipped_no_recipients',
+        entityType: 'BackfillRun',
+        entityId: String(runId),
+        summary: `${friendlySourceLabel(source)} sync notification skipped — no recipients configured`,
+        details: { source, runId },
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[backfill] failed to audit notification skip for run #${runId}: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+  }
+  return recipients;
+}
+
+/**
+ * Email the configured sync recipients when a run terminates in failure.
+ * Recipients come from `BackfillSchedule.recipients`; if unset, the email
+ * is skipped and the skip is recorded in the audit log.
  *
  * Dev fallback: when RESEND_API_KEY is unset, logs the would-be email so
  * the failure path is visible without provisioning Resend locally.
@@ -290,16 +334,8 @@ async function notifyFailure(
     select: { tenantId: true },
   });
   if (!run) return;
-  const users = await db.user.findMany({
-    where: { tenantId: run.tenantId },
-    select: { email: true },
-  });
-  if (users.length === 0) {
-    // eslint-disable-next-line no-console
-    console.warn(`[backfill] no users found for tenant ${run.tenantId}; skipping email`);
-    return;
-  }
-  const recipients = users.map((u) => u.email);
+  const recipients = await resolveSyncRecipients(run.tenantId, source, runId);
+  if (recipients.length === 0) return;
 
   const sourceFriendly = friendlySourceLabel(source);
   const subject = `${sourceFriendly}: sync failed`;
@@ -336,17 +372,17 @@ async function notifyFailure(
     return;
   }
 
-  for (const to of recipients) {
-    const result = await sendEmail({ to, subject, html });
-    if (result.ok) {
-      // eslint-disable-next-line no-console
-      console.warn(`[backfill] failure email sent to ${to} (resend id: ${result.id})`);
-    } else {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[backfill] failure email to ${to} failed: ${result.reason === 'send_failed' ? result.message : result.reason}`,
-      );
-    }
+  const result = await sendEmail({ to: recipients, subject, html });
+  if (result.ok) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[backfill] failure email sent to ${recipients.join(', ')} (resend id: ${result.id})`,
+    );
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[backfill] failure email to ${recipients.join(', ')} failed: ${result.reason === 'send_failed' ? result.message : result.reason}`,
+    );
   }
 }
 
@@ -376,6 +412,31 @@ async function promote(
   mode: string,
 ): Promise<void> {
   if (mode === 'incremental') {
+    // Empty-incremental short-circuit: if this incremental run wrote zero
+    // rows, there's nothing to promote. Skipping the promote also skips
+    // the REFRESH MATERIALIZED VIEW (~3s) and the success notification,
+    // which would otherwise fire for every quiet sync (≈ every few
+    // minutes in prod). The run still completes cleanly.
+    const probe = await db.backfillRun.findUnique({
+      where: { id: runId },
+      select: { itemsProcessed: true },
+    });
+    if (probe && probe.itemsProcessed === 0) {
+      await db.backfillRun.update({
+        where: { id: runId },
+        data: {
+          status: 'completed',
+          finishedAt: new Date(),
+          claimedAt: null,
+          // promoted: false (default) — explicitly NOT promoting.
+        },
+      });
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[backfill] run #${runId} (${source}) completed with 0 new rows — skipping promote/refresh/notify`,
+      );
+      return;
+    }
     await db.backfillRun.update({
       where: { id: runId },
       data: {
@@ -406,6 +467,28 @@ async function promote(
         },
       }),
     ]);
+  }
+
+  // Refresh the LiveJob materialized view if this was a rooflink_jobs promote.
+  // Reads of the AR / write-offs paths now go through LiveJob (see
+  // merge-view.ts), so the view has to reflect the freshly-promoted rows
+  // before we bust the application caches.
+  //
+  // CONCURRENTLY keeps the view readable during the refresh (no exclusive
+  // lock). Requires the unique index defined in the migration. It costs
+  // roughly the same as the old DISTINCT ON query (~1s on 100k rows) but
+  // happens here, not on a user-facing request.
+  if (source === 'rooflink_jobs') {
+    try {
+      await db.$executeRawUnsafe(`REFRESH MATERIALIZED VIEW CONCURRENTLY "LiveJob"`);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[backfill] LiveJob refresh failed after run #${runId}: ${e instanceof Error ? e.message : e}`,
+      );
+      // Don't fail the promote — the next refresh will catch up. The read
+      // path also falls back to RawRooflinkJob if LiveJob is empty.
+    }
   }
 
   // Bust the in-process snapshot caches so the next dashboard request
@@ -508,12 +591,8 @@ async function notifySuccess(run: {
   startedAt: Date | null;
   finishedAt: Date | null;
 }): Promise<void> {
-  const users = await db.user.findMany({
-    where: { tenantId: run.tenantId },
-    select: { email: true },
-  });
-  if (users.length === 0) return;
-  const recipients = users.map((u) => u.email);
+  const recipients = await resolveSyncRecipients(run.tenantId, run.source, run.id);
+  if (recipients.length === 0) return;
 
   const sourceFriendly = friendlySourceLabel(run.source);
   const modeFriendly = run.mode === 'incremental' ? 'Incremental sync' : 'Full sync';
@@ -532,20 +611,50 @@ async function notifySuccess(run: {
     ? `Vera checked Rooflink for changes since the last successful sync and found nothing new for <strong>${escapeHtml(sourceFriendly)}</strong>. No action needed.`
     : `Vera just finished a sync of <strong>${escapeHtml(sourceFriendly)}</strong>. Here's what was pulled in:`;
 
+  // Empty incremental syncs skip the PDF — there are no records to list.
+  // A PDF generation failure is non-fatal; we still send the email so the
+  // operator at least knows the run finished.
+  let pdfAttachment: { filename: string; content: Buffer } | null = null;
+  if (!isEmpty) {
+    try {
+      const data = await buildSyncSummaryData(run.id);
+      if (data && (data.jobRows.length > 0 || data.lineItemsRows.length > 0)) {
+        const buffer = await renderSyncSummaryPDF(data);
+        const dateStamp = (run.finishedAt ?? new Date()).toISOString().slice(0, 10);
+        pdfAttachment = {
+          filename: `vera-${run.source}-sync-${dateStamp}-run-${run.id}.pdf`,
+          content: buffer,
+        };
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[backfill] sync PDF generation failed for run #${run.id}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  const summaryRows: Array<[string, string]> = [
+    ['Source', sourceFriendly],
+    ['Mode', modeFriendly],
+    ['Records updated', run.itemsProcessed.toLocaleString()],
+    ['Duration', durationStr],
+    ['Run reference', `#${run.id}`],
+  ];
+  if (pdfAttachment) {
+    summaryRows.push(['Attached report', `${pdfAttachment.filename}`]);
+  }
+
   const html = renderEmailLayout({
     preheader: isEmpty
       ? `No new ${sourceFriendly.toLowerCase()} since last sync`
       : `${run.itemsProcessed.toLocaleString()} ${sourceFriendly.toLowerCase()} updated`,
     eyebrow: 'Vera · data sync complete',
     headline,
-    introHtml: intro,
-    bodyHtml: renderSummaryTable([
-      ['Source', sourceFriendly],
-      ['Mode', modeFriendly],
-      ['Records updated', run.itemsProcessed.toLocaleString()],
-      ['Duration', durationStr],
-      ['Run reference', `#${run.id}`],
-    ]),
+    introHtml: pdfAttachment
+      ? `${intro} A PDF summary of the touched records is attached to this email.`
+      : intro,
+    bodyHtml: renderSummaryTable(summaryRows),
     cta: {
       href: `${process.env.NEXTAUTH_URL ?? 'http://localhost:3000'}/dashboard/scheduler`,
       label: 'Open scheduler',
@@ -555,21 +664,26 @@ async function notifySuccess(run: {
   if (!isEmailConfigured()) {
     // eslint-disable-next-line no-console
     console.warn(
-      `[backfill] email not configured (no RESEND_API_KEY) — would have sent "${subject}" to ${recipients.join(', ')}`,
+      `[backfill] email not configured (no RESEND_API_KEY) — would have sent "${subject}" to ${recipients.join(', ')}${pdfAttachment ? ` with ${pdfAttachment.filename} (${pdfAttachment.content.byteLength} bytes)` : ''}`,
     );
     return;
   }
-  for (const to of recipients) {
-    const result = await sendEmail({ to, subject, html });
-    if (result.ok) {
-      // eslint-disable-next-line no-console
-      console.warn(`[backfill] success email sent to ${to} (resend id: ${result.id})`);
-    } else {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[backfill] success email to ${to} failed: ${result.reason === 'send_failed' ? result.message : result.reason}`,
-      );
-    }
+  const result = await sendEmail({
+    to: recipients,
+    subject,
+    html,
+    attachments: pdfAttachment ? [pdfAttachment] : undefined,
+  });
+  if (result.ok) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[backfill] success email sent to ${recipients.join(', ')} (resend id: ${result.id}${pdfAttachment ? `, pdf ${pdfAttachment.content.byteLength}b` : ''})`,
+    );
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[backfill] success email to ${recipients.join(', ')} failed: ${result.reason === 'send_failed' ? result.message : result.reason}`,
+    );
   }
 }
 
