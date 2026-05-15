@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-05-15 (narrated demo video — deployed)
+> Last updated: 2026-05-15 (automation rules + RHF standardization — deployed)
 
 ---
 
@@ -38,7 +38,23 @@ Reverse-chronological. Each entry describes the user-visible behavior change.
 
 ### 2026-05-15 — Automation rules + RHF standardization
 
-**Deploying.** Merge commit `9d4dec0` on `main` (PR [#23](https://github.com/adityauphade-mac/vera-mvp/pull/23)). Migration `20260515150000_add_automation_rules` applied to `vera_prod` before code deploy; follow-up hotfix `20260515170000_grant_automation_rules_to_vera_app` granted DML on the new tables to `vera_app` (same lesson as the LiveJob hotfix). Vercel deployment hash recorded once the prod smoke completes.
+**Deployed.** Merge commit `9d4dec0` on `main` (PR [#23](https://github.com/adityauphade-mac/vera-mvp/pull/23)). Follow-up grant fix `b0301f1` (no PR — applied directly to main). Vercel deployment `dpl_9Q2b3hwb9nfn8woARgXVdgp8oLQp`, aliased to <https://vera-mvp.vercel.app>. Migration `20260515150000_add_automation_rules` applied to `vera_prod` before the code deploy; follow-up hotfix `20260515170000_grant_automation_rules_to_vera_app` granted DML on the new tables to `vera_app` (same lesson as PR #22's LiveJob hotfix). Production verification: all four public routes 200, all 11 auth-gated dashboard routes (including `?tab=automation`) 307-redirect to `/login`, all 13 auth-gated API routes return 401 (route exists + DB grants correct — would be 500 otherwise). Manual end-to-end smoke (rule → Evaluate now → Approve → email → audit row) deferred to live demo by the operator.
+
+New tab at `/dashboard/scheduler?tab=automation`. Operators author rules that watch one of three AR metrics — `aging_days`, `balance`, `heat_score` — for a state transition and propose an email into a human-approval queue (Pattern B). Three operators: `crosses_above`, `crosses_below`, `stays_above_for_n_days`. Recipient is either the rep assigned to the job (looked up dynamically per fire via `ARJob.rep.email`) or a fixed test email. Each rule carries its own subject + body template with `{{placeholder}}` interpolation; templates are collapsed under a "Customize the email Vera proposes" disclosure by default. Per-rule `dailySendCap` (default 25) prevents avalanches.
+
+The evaluator hooks into `tick-worker.ts` immediately after `promote()` so rules fire once per successful promoted backfill (and after the `LiveJob` refresh, so it reads the freshest snapshot). The hook is wrapped in try/catch — a misbehaving rule cannot roll back a promoted backfill. A manual "Evaluate now" button on the automation tab lets operators flush the queue between syncs.
+
+Pending sends surface in a queue below the rule list. Each card shows the trigger reason, recipient, subject preview, and expandable body. Single Approve / Reject per row + bulk Approve all / Reject all with a progress toast that updates in-place. Approving routes through the existing `sendEmail` pipeline (Resend) and audit log; rejecting captures the decision. The queue auto-refreshes after Evaluate now without a page reload.
+
+*RHF standardization.* Every form in the app now uses `react-hook-form` + `zodResolver` against a canonical schema in `shared/types/src/forms/` — `DraftEmailButton`, `SchedulerView` (three per-cadence schedule editors + nuqs-driven `?tab=` URL state), `DataSyncSection` (two per-source backfill schedule editors), and the new `AutomationRuleModal`. Same schema validates the client form and the API route body. New `@vera/ui` primitive `Form` / `FormField` / `FormItem` / `FormControl` / `FormMessage` adds inline per-field error rendering with proper per-field `useFormState` subscription.
+
+**Schema migrations:**
+- `20260515150000_add_automation_rules` — `AutomationRule`, `RuleEvaluationState`, `PendingRuleSend`. Indexed on `(tenantId, enabled)` for rule list and `(tenantId, status, createdAt)` for the pending queue. ON DELETE CASCADE on rule FKs.
+- `20260515170000_grant_automation_rules_to_vera_app` — SELECT/INSERT/UPDATE/DELETE on the three tables + USAGE/SELECT on their id sequences. Idempotent via `DO` block + `pg_roles` check so a fresh local DB without `vera_app` doesn't fail.
+
+**Audit:** new `automation_rules` category with actions `created`, `updated`, `deleted`, `enabled`, `disabled`, `evaluated`, `pending_approved`, `pending_rejected`, `pending_expired`, `pending_send_failed`. `AuditDetailSheet` renders an action-specific detail body for each, surfacing trigger metric, recipient, subject/body preview, error messages on send failure, and rejection reason.
+
+**Rollback:** disable rules via the per-rule toggle on the automation tab; reject pending sends en masse with the queue's "Reject all" button. To revert the migration: drop the three tables in reverse FK order (`PendingRuleSend` → `RuleEvaluationState` → `AutomationRule`), then `DELETE FROM _prisma_migrations WHERE migration_name LIKE '%automation_rules%'`. `SendLog` rows produced by approved sends are preserved (`sendLogId` becomes a dangling reference but `SendLog` itself is untouched). `vercel rollback` reverts the code without touching the DB — tables are inert without code.
 
 *Automation rules.* New tab at `/dashboard/scheduler?tab=automation`.
 Operators author rules that watch one of three AR metrics — `aging_days`,
