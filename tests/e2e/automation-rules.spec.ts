@@ -39,13 +39,17 @@ test.describe('Automation rules', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
-    // Clear the name — RHF should mark the form invalid and show inline error
+    // Default name is empty so isValid starts false → Create button disabled.
+    const createBtn = dialog.getByRole('button', { name: /Create rule/i });
+    await expect(createBtn).toBeDisabled();
+
+    // Type then clear to surface the inline "Rule name required" message.
+    // fill('') alone on an already-empty input doesn't fire onChange, so
+    // RHF won't mark the field touched and FormMessage stays hidden.
     const nameInput = dialog.locator('input').first();
+    await nameInput.fill('temp');
     await nameInput.fill('');
     await expect(dialog.getByText(/Rule name required/i)).toBeVisible();
-
-    // Create button is disabled while invalid
-    const createBtn = dialog.getByRole('button', { name: /Create rule/i });
     await expect(createBtn).toBeDisabled();
   });
 
