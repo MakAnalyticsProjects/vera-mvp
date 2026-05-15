@@ -5,6 +5,7 @@ import {
   Controller,
   FormProvider,
   useFormContext,
+  useFormState,
   type ControllerProps,
   type FieldPath,
   type FieldValues,
@@ -102,7 +103,11 @@ const FormItemContext = React.createContext<FormItemContextValue>(
 const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext);
   const itemContext = React.useContext(FormItemContext);
-  const { getFieldState, formState } = useFormContext();
+  const { getFieldState } = useFormContext();
+  // Per-field subscription — without this, FormMessage only re-renders when
+  // the consuming component re-renders for some other reason. Matches the
+  // canonical shadcn implementation.
+  const formState = useFormState({ name: fieldContext.name });
 
   if (!fieldContext) {
     throw new Error('useFormField should be used within <FormField>');
