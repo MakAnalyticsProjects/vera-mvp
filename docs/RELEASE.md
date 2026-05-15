@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-05-15 (LiveJob materialized view — deployed)
+> Last updated: 2026-05-15 (narrated demo video — pending deploy)
 
 ---
 
@@ -35,6 +35,20 @@ manual deploy after every merge to `main`.
 ## Release log
 
 Reverse-chronological. Each entry describes the user-visible behavior change.
+
+### 2026-05-15 — Narrated demo video on the landing page
+
+**Pending.** Merge commit `TBD` on `main` (PR `TBD`). Vercel deployment `TBD`.
+
+A 62-second autoplaying demo video now sits in the landing-page hero, between the Vera headline + CTA buttons and the "What I do, every morning" feature cards. Two renders behind the Tailwind `md:` breakpoint — landscape (1920×1080) for tablet/desktop, portrait (1080×1920) for mobile — walking through fourteen scenes that mirror Vera's real surfaces: sign-in, the morning briefing, heat distribution across active jobs, aging, milestones, follow-ups, reconciliation, the rep leaderboard, write-offs, scheduler cadence, audit log, and a drafted follow-up email. Closes on the brand mark with "Hours back. Leaks closed."
+
+Narration is `af_heart` (Kokoro TTS, generated locally — no API key, no per-request cost), split into fourteen per-scene `<audio>` clips on tracks 20–33 of each composition so speech stays aligned to visuals across renders. The video plays muted-autoplay on load (every modern browser blocks audio autoplay without a user gesture); a floating "Tap to unmute" button in [`apps/web/app/_components/DemoVideo.tsx`](../apps/web/app/_components/DemoVideo.tsx) unmutes only the visible cut and seeks to `t=0` so the visitor hears the narration from the top rather than mid-sentence. The hidden cut stays paused so its audio pipeline never doubles up with the active video.
+
+Composition sources live under [`hyperframes/landing-demo/`](../hyperframes/landing-demo/) (landscape) and [`hyperframes/landing-demo-mobile/`](../hyperframes/landing-demo-mobile/) (portrait). Re-render either with `npx hyperframes render` in the respective directory. Narration WAVs are checked in under `narration/s01.wav` … `s14.wav`; `narration/batch_synth.py` regenerates them from `narration/lines.txt` if the script changes.
+
+**Rollback:** revert the merge commit and re-run `vercel --prod --yes` from the canonical repo, or `vercel rollback` to the previous production deployment. No DB migrations, no env-var changes, no API surface change — frontend asset addition only (~12 MB total across both MP4s + posters in `apps/web/public/`).
+
+---
 
 ### 2026-05-15 — `LiveJob` materialized view
 
