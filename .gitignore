@@ -34,3 +34,15 @@ test-results
 coverage
 tests/e2e/audit-screens
 .env*.local
+
+# Claude Code local config + installed skills (per-developer, not shared)
+.claude/
+.agents/
+skills-lock.json
+
+# Hyperframes render outputs — sources are tracked, MP4s are re-derived by
+# `npx hyperframes render`. The canonical copies live under apps/web/public/.
+hyperframes/*/vera-demo*.mp4
+hyperframes/*/narration.wav
+hyperframes/*/.hyperframes/
+hyperframes/*/renders/

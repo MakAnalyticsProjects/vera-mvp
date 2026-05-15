@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button, VeraQuote } from '@vera/ui';
 import { auth } from '@/lib/auth';
+import { DemoVideo } from './_components/DemoVideo';
 
 const FEATURES = [
   {
@@ -105,8 +106,13 @@ export default async function Landing() {
           </div>
         </section>
 
+        {/* Demo video — silent-by-default loop with a floating unmute button.
+            Two renders behind one breakpoint, swapped via Tailwind's `hidden`
+            so the inactive cut never preloads. See DemoVideo.tsx. */}
+        <DemoVideo />
+
         {/* What I do */}
-        <section className="mt-28 vera-rise-delay-1">
+        <section className="mt-28 vera-rise-delay-2">
           <h2 className="text-text-secondary mb-8 text-sm tracking-[0.2em] uppercase">
             What I do, every morning
           </h2>
@@ -118,7 +124,7 @@ export default async function Landing() {
         </section>
 
         {/* Vera quote */}
-        <section className="mt-24 vera-rise-delay-2">
+        <section className="mt-24 vera-rise-delay-3">
           <VeraQuote>
             Good morning. I&apos;m watching three jobs more closely than usual today —
             Mike Ahrend&apos;s McMackin install crossed into the Hot band overnight, and
