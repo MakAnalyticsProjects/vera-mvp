@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-05-18 (write-offs mock-data incident — recovered)
+> Last updated: 2026-05-18 (JSON read path removed — deployed)
 
 ---
 
@@ -38,7 +38,7 @@ Reverse-chronological. Each entry describes the user-visible behavior change.
 
 ### 2026-05-18 — JSON read path removed; tests run against `vera_test`
 
-**Pending deploy.** Branch `feat/json-removal`; merges as one PR with multiple commits, ships with a single `vercel --prod --yes`. No user-visible behavior change — same dashboard, same numbers — but the architecture under it collapses from "two paths gated by a flag" to one. Carried out per [`JSON_REMOVAL_PLAN.md`](JSON_REMOVAL_PLAN.md).
+**Deployed.** Merge commit `760d973` on `main` (PR [#24](https://github.com/adityauphade-mac/vera-mvp/pull/24), 6-commit chain `5188356` → `178a0f6`). Vercel deployment `dpl_A9VVYuzdLmzw1WRbARaKVg4i73nb`, aliased to <https://vera-mvp.vercel.app>. Post-deploy smoke: public 200, auth-gated dashboard 307→/login, auth-gated APIs 401. Dashboard math unchanged — 130 AR jobs / $1,278,629.33 and 371 write-offs / $2,249,028.95, byte-for-byte the same as pre-deploy. No user-visible behavior change; the architecture under it collapses from "two paths gated by a flag" to one. Carried out per [`JSON_REMOVAL_PLAN.md`](JSON_REMOVAL_PLAN.md).
 
 What changed:
 - The build-time JSON snapshot path (read from `apps/web/data/generated.json` and `write-offs.json`) is gone. Both `lib/data.ts` and `lib/write-offs-data.ts` read from Postgres directly. The `USE_DB_DATA_SOURCE` env flag will be removed from Vercel + `.env.prod` after the deploy lands.
