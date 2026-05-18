@@ -159,7 +159,7 @@ function fmtUSD(n: number | null): string {
   }).format(n);
 }
 
-function fmtUSDate(iso: string | null): string {
+function fmtUSDate(iso: string | null, timeZone: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
@@ -167,6 +167,7 @@ function fmtUSDate(iso: string | null): string {
     month: '2-digit',
     day: '2-digit',
     year: 'numeric',
+    timeZone,
   });
 }
 
@@ -174,13 +175,14 @@ function fmtCount(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-function buildSubtitle(data: SyncSummaryData): string {
+function buildSubtitle(data: SyncSummaryData, timeZone: string): string {
   const finished = data.finishedAt ? new Date(data.finishedAt) : new Date();
   return finished.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone,
   });
 }
 
@@ -225,7 +227,13 @@ function KPI({
   );
 }
 
-function JobsTable({ rows }: { rows: SyncSummaryData['jobRows'] }) {
+function JobsTable({
+  rows,
+  timeZone,
+}: {
+  rows: SyncSummaryData['jobRows'];
+  timeZone: string;
+}) {
   return (
     <>
       <View style={styles.flatHeader} fixed>
@@ -258,7 +266,7 @@ function JobsTable({ rows }: { rows: SyncSummaryData['jobRows'] }) {
               { width: 60, textAlign: 'right', color: COLORS.secondary },
             ]}
           >
-            {fmtUSDate(r.dateCompleted)}
+            {fmtUSDate(r.dateCompleted, timeZone)}
           </Text>
           <Text
             style={[
@@ -314,9 +322,21 @@ function LineItemsTable({ rows }: { rows: SyncSummaryData['lineItemsRows'] }) {
   );
 }
 
-export function SyncSummaryPDF({ data }: { data: SyncSummaryData }) {
+/**
+ * `timeZone` is the IANA zone the PDF should render dates in. Emails ship as
+ * a finished artifact, so the recipient's browser can't reformat — callers
+ * must pass the zone explicitly (tenant.briefingTimezone for cron, requester
+ * zone for user-triggered downloads).
+ */
+export function SyncSummaryPDF({
+  data,
+  timeZone,
+}: {
+  data: SyncSummaryData;
+  timeZone: string;
+}) {
   const title = `${data.sourceFriendly} sync`;
-  const subtitle = buildSubtitle(data);
+  const subtitle = buildSubtitle(data, timeZone);
   const documentTitle = `Vera ${title} — ${subtitle}`;
 
   const intro =
@@ -354,7 +374,7 @@ export function SyncSummaryPDF({ data }: { data: SyncSummaryData }) {
         </Text>
 
         {data.source === 'rooflink_jobs' ? (
-          <JobsTable rows={data.jobRows} />
+          <JobsTable rows={data.jobRows} timeZone={timeZone} />
         ) : (
           <LineItemsTable rows={data.lineItemsRows} />
         )}
@@ -372,6 +392,9 @@ export function SyncSummaryPDF({ data }: { data: SyncSummaryData }) {
   );
 }
 
-export async function renderSyncSummaryPDF(data: SyncSummaryData): Promise<Buffer> {
-  return renderToBuffer(<SyncSummaryPDF data={data} />);
+export async function renderSyncSummaryPDF(
+  data: SyncSummaryData,
+  timeZone: string,
+): Promise<Buffer> {
+  return renderToBuffer(<SyncSummaryPDF data={data} timeZone={timeZone} />);
 }

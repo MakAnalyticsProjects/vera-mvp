@@ -255,11 +255,12 @@ function fmtUSD(n: number): string {
   }).format(n);
 }
 
-function fmtDate(d: Date): string {
+function fmtDate(d: Date, timeZone: string): string {
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone,
   });
 }
 
@@ -644,7 +645,19 @@ function FullJobListPage({ rows }: { rows: DailyBriefData['fullJobList'] }) {
   );
 }
 
-export function DailyBriefPDF({ data }: { data: DailyBriefData }) {
+/**
+ * `timeZone` is the IANA zone the recipient will read the PDF in. Emails are
+ * delivered as a finished artifact; the recipient's browser can't reformat
+ * dates inside the PDF. Callers must therefore pass the right zone explicitly
+ * (tenant.briefingTimezone for cron, requester's zone for user-triggered).
+ */
+export function DailyBriefPDF({
+  data,
+  timeZone,
+}: {
+  data: DailyBriefData;
+  timeZone: string;
+}) {
   const {
     cadence,
     briefTitle,
@@ -660,7 +673,7 @@ export function DailyBriefPDF({ data }: { data: DailyBriefData }) {
     fullJobList,
   } = data;
 
-  const documentTitle = `Vera ${briefTitle} — ${fmtDate(data.asOf)}`;
+  const documentTitle = `Vera ${briefTitle} — ${fmtDate(data.asOf, timeZone)}`;
 
   const criticalCardTitle =
     cadence === 'weekly'
@@ -735,6 +748,9 @@ export function DailyBriefPDF({ data }: { data: DailyBriefData }) {
 }
 
 /** Render the PDF to a Buffer for email attachment. */
-export async function renderDailyBriefPDF(data: DailyBriefData): Promise<Buffer> {
-  return renderToBuffer(<DailyBriefPDF data={data} />);
+export async function renderDailyBriefPDF(
+  data: DailyBriefData,
+  timeZone: string,
+): Promise<Buffer> {
+  return renderToBuffer(<DailyBriefPDF data={data} timeZone={timeZone} />);
 }

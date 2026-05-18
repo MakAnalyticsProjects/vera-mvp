@@ -617,6 +617,11 @@ async function notifySuccess(run: {
   const recipients = await resolveSyncRecipients(run.tenantId, run.source, run.id);
   if (recipients.length === 0) return;
 
+  const tenant = await db.tenant.findUnique({
+    where: { id: run.tenantId },
+    select: { briefingTimezone: true },
+  });
+  const timeZone = tenant?.briefingTimezone ?? 'America/Chicago';
   const sourceFriendly = friendlySourceLabel(run.source);
   const modeFriendly = run.mode === 'incremental' ? 'Incremental sync' : 'Full sync';
   const durationStr = formatDuration(run.startedAt, run.finishedAt);
@@ -642,8 +647,13 @@ async function notifySuccess(run: {
     try {
       const data = await buildSyncSummaryData(run.id);
       if (data && (data.jobRows.length > 0 || data.lineItemsRows.length > 0)) {
-        const buffer = await renderSyncSummaryPDF(data);
-        const dateStamp = (run.finishedAt ?? new Date()).toISOString().slice(0, 10);
+        const buffer = await renderSyncSummaryPDF(data, timeZone);
+        const dateStamp = new Intl.DateTimeFormat('en-CA', {
+          timeZone,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(run.finishedAt ?? new Date());
         pdfAttachment = {
           filename: `vera-${run.source}-sync-${dateStamp}-run-${run.id}.pdf`,
           content: buffer,
