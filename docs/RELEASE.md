@@ -61,13 +61,17 @@ Reverse-chronological. Each entry describes the user-visible behavior change.
 
 **Rollback path.** None of the changes are deploys; rollback is just reversing the SQL (`UPDATE` flags back, `INSERT` the 40 mock rows back — though there's no reason to do this). `RL_KEY` can be removed again via `vercel env rm RL_KEY production` if needed.
 
-**Code fix shipped same day — watermark hygiene.** `advanceWatermark` now skips when `itemsProcessed === 0` (an empty incremental no longer advances `BackfillSchedule.lastSyncedAt`), and the Run-now route's watermark query now filters by `promoted = true` (an unpromoted run — including empty short-circuits — no longer counts as a watermark source). Together these mean: a `rooflink_lineitems` incremental that decides locally "no jobs changed, nothing to refetch" no longer claims we're synced through "now"; it leaves the watermark on the last *actually-fetched* run. Without this, future incrementals could silently skip the unverified window. Same defect would have masked Saturday's mock-data poisoning faster if it had been in place.
+**Code fix shipped same day — watermark hygiene.** Commits `e987892` (fix) + `536931a` (plan doc) on `main`, Vercel deployment `dpl_AKWoz7R7Px3thLVMu4aWZT4bqLy6`, aliased to <https://vera-mvp.vercel.app>. Smoke: public 200, auth-gated dashboard 307→/login, auth-gated API 401 — all as expected.
+
+`advanceWatermark` now skips when `itemsProcessed === 0` (an empty incremental no longer advances `BackfillSchedule.lastSyncedAt`), and the Run-now route's watermark query now filters by `promoted = true` (an unpromoted run — including empty short-circuits — no longer counts as a watermark source). Together these mean: a `rooflink_lineitems` incremental that decides locally "no jobs changed, nothing to refetch" no longer claims we're synced through "now"; it leaves the watermark on the last *actually-fetched* run. Without this, future incrementals could silently skip the unverified window. Same defect would have masked Saturday's mock-data poisoning faster if it had been in place.
 
 Files:
 - `apps/web/lib/backfill/tick-worker.ts` — `advanceWatermark` gated on `itemsProcessed > 0`.
 - `apps/web/app/api/backfills/[source]/runs/route.ts` — watermark query filters `promoted: true`.
 
 After this lands, the next `rooflink_lineitems` Run-now derives its watermark from run #135's `startedAt` (2026-05-13 14:26 IST) — the last lineitems run that actually pulled real Rooflink data — instead of the empty-incremental short-circuit at 2026-05-17 12:00 IST. So an incremental can find real estimate edits since May 13 rather than seeing an artificially-narrow May 17→now window where nothing could have changed in our stale jobs snapshot.
+
+**JSON-removal follow-up planned.** `docs/JSON_REMOVAL_PLAN.md` captures the next PR — remove the dormant JSON read path, the JSONL backfill fallback, and the `USE_DB_DATA_SOURCE` flag; tests move to a dedicated `vera_test` Postgres DB seeded from checked-in SQL. ~1 working day of effort, sequenced so each commit leaves the repo green.
 
 **Follow-ups still to file** (separate tasks):
 - **Fail-fast on missing `RL_KEY` in production.** `apps/web/lib/backfill/rooflink.ts:69` (`isLiveMode`) should throw in `NODE_ENV=production` when `RL_KEY` is unset, not silently substitute mock data. Mock-mode is for dev only and should never run unannounced in prod.
