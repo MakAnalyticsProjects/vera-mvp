@@ -4,8 +4,8 @@
  * Playwright specs run against deterministic data.
  *
  * Inputs:
- *   - tests/fixtures/generated.fixture.json   (slim AR job set, 130 rows)
- *   - apps/web/data/write-offs.json           (write-off records, 373 rows)
+ *   - tests/fixtures/generated.fixture.json     (slim AR job set, 130 rows)
+ *   - tests/fixtures/write-offs.fixture.json    (write-off records, 373 rows)
  *
  * Output:
  *   - tests/fixtures/vera_test.sql            (checked-in)
@@ -34,7 +34,7 @@ import { dirname, resolve } from 'node:path';
 
 const REPO_ROOT = resolve(__dirname, '..');
 const AR_FIXTURE = resolve(REPO_ROOT, 'tests/fixtures/generated.fixture.json');
-const WO_FIXTURE = resolve(REPO_ROOT, 'apps/web/data/write-offs.json');
+const WO_FIXTURE = resolve(REPO_ROOT, 'tests/fixtures/write-offs.fixture.json');
 const OUT_FILE = resolve(REPO_ROOT, 'tests/fixtures/vera_test.sql');
 
 // Hardcoded so they match `DEFAULT_TEST_USER` in tests/e2e/_helpers/auth.ts.
@@ -311,7 +311,7 @@ function main(): void {
   lines.push('-- DO NOT EDIT BY HAND. Re-run the script to regenerate.');
   lines.push(`-- Generated: ${new Date().toISOString()}`);
   lines.push(`-- Source AR fixture: tests/fixtures/generated.fixture.json (${ar.jobs.length} AR jobs)`);
-  lines.push(`-- Source WO fixture: apps/web/data/write-offs.json (${wo.records.length} WO records)`);
+  lines.push(`-- Source WO fixture: tests/fixtures/write-offs.fixture.json (${wo.records.length} WO records)`);
   lines.push(`-- Produces: ${jobPayloads.length} RawRooflinkJob, ${lineItems.length} RawRooflinkLineItems`);
   lines.push('');
   lines.push('BEGIN;');
