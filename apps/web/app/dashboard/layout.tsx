@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { VeraAvatar } from '@vera/ui';
 import { getDataForCurrentSession } from '@/lib/data';
 import { auth } from '@/lib/auth';
+import { AsOfDate } from './_components/AsOfDate';
 import { ChatPanel } from './_components/ChatPanel';
 import { MobileNav } from './_components/MobileNav';
 import { SidebarNav } from './_components/SidebarNav';
@@ -19,11 +20,6 @@ export default async function DashboardLayout({
   const { asOf } = await getDataForCurrentSession();
   const session = await auth();
   const firstName = session?.user?.name?.split(' ')[0] ?? null;
-  const asOfDate = new Date(asOf).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
 
   return (
     <div className="bg-bg-base min-h-screen">
@@ -54,7 +50,7 @@ export default async function DashboardLayout({
               {firstName ? `Briefing for ${firstName}` : 'Briefing for'}
             </p>
             <p className="font-display mt-1 truncate text-lg tracking-tight leading-none sm:text-xl">
-              {asOfDate}
+              <AsOfDate asOf={asOf} />
             </p>
           </div>
           <MobileNav />

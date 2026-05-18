@@ -167,10 +167,14 @@ async function buildAndSend(opts: {
 
   let pdfAttachment: { filename: string; content: Buffer } | null = null;
   if (!isEmpty && data) {
-    const buffer = await renderSyncSummaryPDF(data);
-    const dateStamp = (data.finishedAt ? new Date(data.finishedAt) : new Date())
-      .toISOString()
-      .slice(0, 10);
+    const timeZone = 'America/Chicago';
+    const buffer = await renderSyncSummaryPDF(data, timeZone);
+    const dateStamp = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(data.finishedAt ? new Date(data.finishedAt) : new Date());
     pdfAttachment = {
       filename: `vera-${data.source}-sync-${dateStamp}-run-${data.runId}.pdf`,
       content: buffer,

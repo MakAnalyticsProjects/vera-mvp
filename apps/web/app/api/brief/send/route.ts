@@ -133,13 +133,18 @@ export async function sendBrief(input: SendBriefInput): Promise<SendBriefResult>
   }
 
   const { to, sendAt, cadence = 'daily', tenantId } = input;
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { briefingTimezone: true },
+  });
+  const timeZone = tenant?.briefingTimezone ?? 'America/Chicago';
   const { jobs } = await getData(tenantId);
   const now = new Date();
-  const brief = buildDailyBrief(jobs, now, cadence);
+  const brief = buildDailyBrief(jobs, now, cadence, timeZone);
 
   let pdfBuffer: Buffer;
   try {
-    pdfBuffer = await renderDailyBriefPDF(brief.data);
+    pdfBuffer = await renderDailyBriefPDF(brief.data, timeZone);
   } catch (e) {
     return {
       ok: false,
@@ -149,7 +154,15 @@ export async function sendBrief(input: SendBriefInput): Promise<SendBriefResult>
     };
   }
 
-  const dateStamp = now.toISOString().slice(0, 10);
+  // Filename date reflects the recipient's calendar day in the tenant's
+  // timezone, not the server's UTC. Otherwise a brief sent at 10pm Central
+  // gets stamped with the next day's date.
+  const dateStamp = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
   const filename = `vera-${cadence}-ar-brief-${dateStamp}.pdf`;
 
   const result = await sendEmail({

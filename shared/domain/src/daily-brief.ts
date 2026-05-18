@@ -168,32 +168,42 @@ function formatUSD(n: number): string {
   }).format(n);
 }
 
-function formatDate(d: Date): string {
+function formatDate(d: Date, timeZone: string): string {
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone,
   });
 }
 
-function formatMonthYear(d: Date): string {
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+function formatMonthYear(d: Date, timeZone: string): string {
+  return d.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone,
+  });
 }
 
 /**
  * Build the AR brief for a given cadence.
  *
- * @param jobs    — full AR job set (already filtered to the AR working set)
- * @param now     — pass-in clock so the function stays pure
- * @param cadence — daily | weekly | monthly framing
+ * @param jobs     — full AR job set (already filtered to the AR working set)
+ * @param now      — pass-in clock so the function stays pure
+ * @param cadence  — daily | weekly | monthly framing
+ * @param timeZone — IANA zone to format human-readable dates in (email subject,
+ *                   subtitle). Optional; defaults to America/Chicago so
+ *                   existing callers don't break, but production callers
+ *                   should pass the tenant's briefingTimezone explicitly.
  */
 export function buildDailyBrief(
   jobs: ARJob[],
   now: Date,
   cadence: BriefCadence = 'daily',
+  timeZone: string = 'America/Chicago',
 ): DailyBriefSection {
-  const dateStr = formatDate(now);
-  const monthStr = formatMonthYear(now);
+  const dateStr = formatDate(now, timeZone);
+  const monthStr = formatMonthYear(now, timeZone);
 
   // --- Totals ---------------------------------------------------------
   const totalOutstanding = jobs.reduce((s, j) => s + j.balance, 0);

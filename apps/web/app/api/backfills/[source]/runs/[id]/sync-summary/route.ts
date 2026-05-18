@@ -52,7 +52,12 @@ export async function GET(_req: Request, ctx: RouteContext) {
       return NextResponse.json({ error: 'no_records' }, { status: 204 });
     }
 
-    const buffer = await renderSyncSummaryPDF(data);
+    const tenant = await db.tenant.findUnique({
+      where: { id: audit.tenantId },
+      select: { briefingTimezone: true },
+    });
+    const timeZone = tenant?.briefingTimezone ?? 'America/Chicago';
+    const buffer = await renderSyncSummaryPDF(data, timeZone);
     const filename = `vera-${run.source}-sync-run-${runId}.pdf`;
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
