@@ -719,6 +719,15 @@ async function notifySuccess(run: {
  * may not have been captured. Setting the watermark to start time means
  * the next incremental run re-fetches anything edited from then forward,
  * including overlap, which is fine because writes are upserts.
+ *
+ * Gated on `itemsProcessed > 0`: if this run fetched zero rows, the
+ * watermark stays where it was. Otherwise an empty incremental that
+ * short-circuits (e.g. lineitems whose local candidate-id filter returns
+ * zero because the jobs snapshot hasn't been refreshed) would advance
+ * `lastSyncedAt` to "now" without ever having confirmed with Rooflink
+ * that nothing changed in that window. Subsequent runs would then skip
+ * over the unconfirmed window, silently missing edits. See the 2026-05-18
+ * write-offs incident in docs/RELEASE.md for the failure mode.
  */
 async function advanceWatermark(runId: number): Promise<void> {
   const run = await db.backfillRun.findUnique({
@@ -729,9 +738,11 @@ async function advanceWatermark(runId: number): Promise<void> {
       mode: true,
       startedAt: true,
       scheduleId: true,
+      itemsProcessed: true,
     },
   });
   if (!run || !run.startedAt) return;
+  if (run.itemsProcessed === 0) return;
   await db.backfillSchedule.updateMany({
     where: { tenantId: run.tenantId, source: run.source },
     data: {

@@ -58,12 +58,21 @@ export async function POST(req: Request, ctx: RouteContext) {
     }
 
     // Decide mode. The watermark is the `startedAt` of the most recent
-    // successfully completed run for this (tenant, source) — derived from
-    // BackfillRun directly so Run-now works even when no BackfillSchedule
-    // row exists (the common case before a cron is configured). The schedule's
-    // `lastSyncedAt` is a denormalized cache the dispatcher uses; we don't
-    // depend on it here. `?mode=full` forces a full re-sync (the "Run as
-    // full sync" UI affordance, used for periodic schema/deletion refresh).
+    // successfully completed AND promoted run for this (tenant, source) —
+    // derived from BackfillRun directly so Run-now works even when no
+    // BackfillSchedule row exists (the common case before a cron is
+    // configured). The schedule's `lastSyncedAt` is a denormalized cache
+    // the dispatcher uses; we don't depend on it here.
+    //
+    // Filter on `promoted = true` (not just `status = 'completed'`): an
+    // empty incremental short-circuits without promoting, so its
+    // `startedAt` is not a meaningful watermark. Using it would mean the
+    // next incremental queries only the window since "the last time we
+    // ran", not "the last time we actually fetched fresh data" — see the
+    // 2026-05-18 write-offs incident in docs/RELEASE.md.
+    //
+    // `?mode=full` forces a full re-sync (the "Run as full sync" UI
+    // affordance, used for periodic schema/deletion refresh).
     const url = new URL(req.url);
     const forceFull = url.searchParams.get('mode') === 'full';
 
@@ -74,6 +83,7 @@ export async function POST(req: Request, ctx: RouteContext) {
           tenantId,
           source,
           status: 'completed',
+          promoted: true,
           startedAt: { not: null },
         },
         orderBy: { startedAt: 'desc' },

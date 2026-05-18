@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-05-15 (automation rules + RHF standardization — deployed)
+> Last updated: 2026-05-18 (write-offs mock-data incident — recovered)
 
 ---
 
@@ -35,6 +35,46 @@ manual deploy after every merge to `main`.
 ## Release log
 
 Reverse-chronological. Each entry describes the user-visible behavior change.
+
+### 2026-05-18 — Write-offs mock-data incident (no-deploy recovery)
+
+**Recovered.** Production env edit + targeted SQL on `vera_prod`. No code deploy, no migration. Reported by Israil — `/dashboard/write-offs` showed `$0 / 0 jobs` against `2208 jobs scanned` from Saturday afternoon through Monday morning IST.
+
+**Root cause.** `RL_KEY` (the Rooflink API key) was missing from the Vercel production environment. The backfill client at [`apps/web/lib/backfill/rooflink.ts:19`](../apps/web/lib/backfill/rooflink.ts#L19) treats missing `RL_KEY` as "dev mode" and silently returns mock fixture data — for `rooflink_lineitems` the fixture is exactly 40 synthetic rows named `rooflink_lineitems-mock-00000` etc. The key was almost certainly removed during the [2026-05-14 Neon-cleanup pass](#2026-05-14--multi-recipient-notifications--audited-follow-up-email-send) — that session removed 13 env vars in a batch and `RL_KEY` got swept up alongside the deprecated Neon ones. It also didn't get carried over into `.env.prod` when the recovery file was first built (file was sourced from "what Vercel currently has" post-cleanup, not from "what the app actually reads").
+
+**Why the rooflink_lineitems snapshot got poisoned.** The cron dispatcher at [`apps/web/app/api/cron/dispatch-briefs/route.ts:290`](../apps/web/app/api/cron/dispatch-briefs/route.ts#L290) picks `mode = sch.lastSyncedAt ? 'incremental' : 'full'`. The `BackfillSchedule` row for `rooflink_lineitems` was created on 2026-05-15 12:38 IST, *after* the existing manual `rooflink_lineitems` runs had already completed (those runs had `scheduleId = NULL`). `advanceWatermark` updates `BackfillSchedule WHERE (tenantId, source)` — for the manual runs the schedule row didn't exist yet, so `updateMany` matched zero rows and `lastSyncedAt` stayed NULL on the freshly-created schedule. Saturday's 2026-05-16 12:00 IST cron firing therefore picked `mode = 'full'`. The full-sync branch in [`tick-worker.ts:474`](../apps/web/lib/backfill/tick-worker.ts#L474) demotes every other promoted run for the source — that's how mock run #149 (40 rows) replaced the real run #135 (8,434 rows) as the live snapshot.
+
+**Recovery.**
+1. **`RL_KEY` restored in Vercel prod** via `vercel env add RL_KEY production` (value from canonical local `apps/web/.env.local`). Fluid Compute reads env per-invocation, so no redeploy was needed to make subsequent backfill ticks hit the real API.
+2. **Snapshot swapped back** with a single transaction on `vera_prod`:
+   ```sql
+   BEGIN;
+   UPDATE "BackfillRun" SET promoted = false WHERE id = 149;
+   UPDATE "BackfillRun" SET promoted = true  WHERE id = 135;
+   DELETE FROM "RawRooflinkLineItems" WHERE "dataVersion" = 149;
+   COMMIT;
+   ```
+   Re-promotes the 2026-05-13 manual full-sync snapshot (8,434 real line-item payloads from the live Rooflink API), demotes the Saturday mock run, and prunes the 40 mock rows so no future code path can accidentally pick them up.
+3. **`.env.prod` rebuilt** with `RL_KEY` added under the "Third-party API keys" section and the "Last reconciled" date bumped. Confirmed `.env.prod` now matches Vercel prod exactly for all user-set keys (18 keys, diff is empty after excluding platform-injected `VERCEL_*` / `TURBO_*` / `NX_DAEMON`).
+
+**Verification.** Post-fix simulation of the write-offs join against the restored snapshot returned **373 records / $2,259,638.77 total amount withheld** — matches the historical `apps/web/data/write-offs.json` (May 13 build-time snapshot) to the penny. Zero `skipped404` rows (every one of the 2,208 candidate jobs found a matching line-item payload). Israil confirmed the dashboard surface shows the restored numbers.
+
+**Rollback path.** None of the changes are deploys; rollback is just reversing the SQL (`UPDATE` flags back, `INSERT` the 40 mock rows back — though there's no reason to do this). `RL_KEY` can be removed again via `vercel env rm RL_KEY production` if needed.
+
+**Code fix shipped same day — watermark hygiene.** `advanceWatermark` now skips when `itemsProcessed === 0` (an empty incremental no longer advances `BackfillSchedule.lastSyncedAt`), and the Run-now route's watermark query now filters by `promoted = true` (an unpromoted run — including empty short-circuits — no longer counts as a watermark source). Together these mean: a `rooflink_lineitems` incremental that decides locally "no jobs changed, nothing to refetch" no longer claims we're synced through "now"; it leaves the watermark on the last *actually-fetched* run. Without this, future incrementals could silently skip the unverified window. Same defect would have masked Saturday's mock-data poisoning faster if it had been in place.
+
+Files:
+- `apps/web/lib/backfill/tick-worker.ts` — `advanceWatermark` gated on `itemsProcessed > 0`.
+- `apps/web/app/api/backfills/[source]/runs/route.ts` — watermark query filters `promoted: true`.
+
+After this lands, the next `rooflink_lineitems` Run-now derives its watermark from run #135's `startedAt` (2026-05-13 14:26 IST) — the last lineitems run that actually pulled real Rooflink data — instead of the empty-incremental short-circuit at 2026-05-17 12:00 IST. So an incremental can find real estimate edits since May 13 rather than seeing an artificially-narrow May 17→now window where nothing could have changed in our stale jobs snapshot.
+
+**Follow-ups still to file** (separate tasks):
+- **Fail-fast on missing `RL_KEY` in production.** `apps/web/lib/backfill/rooflink.ts:69` (`isLiveMode`) should throw in `NODE_ENV=production` when `RL_KEY` is unset, not silently substitute mock data. Mock-mode is for dev only and should never run unannounced in prod.
+- **Dispatcher should mirror Run-now's watermark logic.** The cron path uses `BackfillSchedule.lastSyncedAt`; the Run-now endpoint correctly derives the watermark from `BackfillRun` directly. If the cron used the same rule, Saturday would have correctly chosen `incremental` and this incident wouldn't have happened.
+- **Size-regression guard in `promote()`.** A full-sync promote that shrinks the live row count by more than ~10× should require an explicit override flag or at least audit-log the delta loudly. Run #149 dropped the live count from 8,434 → 40 with no signal anywhere.
+- **Env-presence check in deploy.** Build a small assertion list (probably typed in `apps/web/lib/env.ts`) of variables the app *must* have in prod, and run it from CI / as a smoke check after every `vercel --prod`. Today there's no enumerated kill-list — `.env.prod` was sourced from Vercel rather than from a canonical schema, which is what allowed `RL_KEY` to disappear silently.
+- **Use observed `date_last_edited` as watermark instead of `startedAt`.** Part-2 follow-up to today's fix. Stronger semantics: "we've definitely seen all edits up to T_max" requires tracking the max observed timestamp during the fetch. Today's gate (`itemsProcessed > 0`) closes the immediate bug; this would tighten it further.
 
 ### 2026-05-15 — Automation rules + RHF standardization
 
