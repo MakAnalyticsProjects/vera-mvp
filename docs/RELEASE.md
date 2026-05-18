@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-05-18 (timezone leak fix — pending)
+> Last updated: 2026-05-18 (timezone leak fix — deployed)
 
 ---
 
@@ -38,7 +38,7 @@ Reverse-chronological. Each entry describes the user-visible behavior change.
 
 ### 2026-05-18 — Timezone leak fix: dashboard dates in browser TZ, PDFs in tenant TZ
 
-**Pending.** Branch `fix/timezone-leaks`, commit `2350c13`. PR to be opened.
+**Deployed.** Merge commit `bff45f5` on `main` (PR [#25](https://github.com/adityauphade-mac/vera-mvp/pull/25)). Vercel deployment `dpl_8nJJRREuaE2A4RooGnjvyLAdSz37`, aliased to <https://vera-mvp.vercel.app>. Post-deploy smoke: public `/` 200, auth-gated dashboard routes 307→/login, auth-gated APIs 401. No 500s.
 
 Five surfaces were rendering dates in UTC instead of the viewer's local time. Server components were formatting with `toLocaleDateString` (Node runtime = UTC on Vercel) and email PDFs were stamping `now.toISOString().slice(0,10)` for filenames — every viewer saw the UTC date regardless of where they sat.
 
