@@ -77,4 +77,46 @@ test.describe('Installs & Payments', () => {
     // The four mutually exclusive states partition every row exactly.
     expect(outstanding + overpaid + settled + none).toBe(all);
   });
+
+  test('custom date range filters rows by install date window', async ({ page }) => {
+    const readRowCount = async (url: string): Promise<number> => {
+      await page.goto(url);
+      await page.waitForLoadState('networkidle');
+      const title = await page
+        .getByText(/Installs — \d+ rows?/)
+        .first()
+        .textContent();
+      return Number(title?.match(/(\d+)\s+rows?/)?.[1] ?? '0');
+    };
+
+    // Fixture is all May 2026 (49 rows, 05/02–05/29). A custom window keys off
+    // installDate, so the bounds deterministically partition the data.
+    const fullMay = await readRowCount(
+      '/dashboard/installs?range=custom&from=2026-05-01&to=2026-05-31',
+    );
+    const firstHalf = await readRowCount(
+      '/dashboard/installs?range=custom&from=2026-05-01&to=2026-05-15',
+    );
+    const june = await readRowCount(
+      '/dashboard/installs?range=custom&from=2026-06-01&to=2026-06-30',
+    );
+
+    expect(fullMay).toBe(49);
+    expect(firstHalf).toBe(32);
+    expect(june).toBe(0);
+    // An out-of-range window shows the empty state, not a blank table.
+    await expect(page.getByText(/No installs match the current filters/i)).toBeVisible();
+  });
+
+  test('quick-filter chips toggle the active preset', async ({ page }) => {
+    await page.goto('/dashboard/installs');
+    await page.waitForLoadState('networkidle');
+    // Default view is "All".
+    await expect(page.locator('[data-preset="all"]')).toHaveAttribute('aria-pressed', 'true');
+    // Selecting a preset moves the active state off "All" (count is date-relative,
+    // so we assert the toggle behavior, not a row count).
+    await page.locator('[data-preset="month"]').click();
+    await expect(page.locator('[data-preset="month"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-preset="all"]')).toHaveAttribute('aria-pressed', 'false');
+  });
 });

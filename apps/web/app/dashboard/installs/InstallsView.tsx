@@ -4,9 +4,13 @@ import { useMemo } from 'react';
 import { useQueryState, parseAsInteger, parseAsArrayOf, parseAsString } from 'nuqs';
 import {
   Card,
+  DateRangeFilter,
+  type DateRangePreset,
+  type DateRangeValue,
   FilterMenu,
   type FilterGroup,
   MetricTile,
+  resolveDateRange,
   TablePagination,
   type PageSize,
   TableToolbar,
@@ -52,6 +56,25 @@ export function InstallsView({ file }: { file: InstallPaymentsFile }) {
     'status',
     parseAsArrayOf(parseAsString).withDefault([]),
   );
+  const [range, setRange] = useQueryState('range', parseAsString.withDefault('all'));
+  const [from, setFrom] = useQueryState('from', parseAsString);
+  const [to, setTo] = useQueryState('to', parseAsString);
+
+  const dateValue = useMemo<DateRangeValue>(
+    () => ({ preset: normalizePreset(range), from: from ?? undefined, to: to ?? undefined }),
+    [range, from, to],
+  );
+  // Quick-filter presets resolve against the browser's current date so "This
+  // month" stays correct over time and across shared URLs (Q: timezone — render
+  // in browser-local TZ, never UTC).
+  const dateWindow = useMemo(() => resolveDateRange(dateValue, new Date()), [dateValue]);
+
+  const handleDateChange = (next: DateRangeValue) => {
+    setRange(next.preset);
+    setFrom(next.preset === 'custom' ? (next.from ?? null) : null);
+    setTo(next.preset === 'custom' ? (next.to ?? null) : null);
+    setPage(1);
+  };
 
   const filterGroups: FilterGroup[] = useMemo(() => {
     const repCounts = new Map<string, number>();
@@ -93,9 +116,12 @@ export function InstallsView({ file }: { file: InstallPaymentsFile }) {
     return file.records.filter((r) => {
       if (repFilter.length > 0 && !repFilter.includes(r.salesRep)) return false;
       if (statusFilter.length > 0 && !statusFilter.includes(installStatus(r))) return false;
+      // installDate is a 'YYYY-MM-DD' string, so lexicographic compare is chronological.
+      if (dateWindow.from && r.installDate < dateWindow.from) return false;
+      if (dateWindow.to && r.installDate > dateWindow.to) return false;
       return true;
     });
-  }, [file.records, repFilter, statusFilter]);
+  }, [file.records, repFilter, statusFilter, dateWindow]);
 
   const totalContract = filtered.reduce((s, r) => s + (r.contractPrice ?? 0), 0);
   const totalCollected = filtered.reduce((s, r) => s + collectedOf(r), 0);
@@ -110,7 +136,8 @@ export function InstallsView({ file }: { file: InstallPaymentsFile }) {
   const safePageSize = pageSize as PageSize;
   const paged = filtered.slice((page - 1) * safePageSize, page * safePageSize);
 
-  const filterCount = repFilter.length + statusFilter.length;
+  const filterCount =
+    repFilter.length + statusFilter.length + (dateValue.preset !== 'all' ? 1 : 0);
   const periodLabel = file.sourcePeriod === 'Multiple' ? 'multiple months' : monthLabel(file.sourcePeriod);
   const narrative = composeNarrative({
     count: filtered.length,
@@ -178,6 +205,7 @@ export function InstallsView({ file }: { file: InstallPaymentsFile }) {
       </section>
 
       <section className="space-y-3 vera-rise-delay-2">
+        <DateRangeFilter value={dateValue} onChange={handleDateChange} />
         <TableToolbar
           title={`Installs — ${filtered.length} ${filtered.length === 1 ? 'row' : 'rows'}`}
           subtitle={
@@ -221,6 +249,11 @@ export function InstallsView({ file }: { file: InstallPaymentsFile }) {
       </section>
     </div>
   );
+}
+
+const DATE_PRESETS: readonly DateRangePreset[] = ['all', 'month', 'last3', 'custom'];
+function normalizePreset(raw: string): DateRangePreset {
+  return (DATE_PRESETS as readonly string[]).includes(raw) ? (raw as DateRangePreset) : 'all';
 }
 
 function monthLabel(period: string): string {

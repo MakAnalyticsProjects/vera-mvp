@@ -16,6 +16,7 @@ export * from './components/Tooltip';
 export * from './components/Sheet';
 export * from './components/TablePagination';
 export * from './components/FilterMenu';
+export * from './components/DateRangeFilter';
 export * from './components/Calendar';
 export * from './components/DateTimePicker';
 export * from './components/Popover';
