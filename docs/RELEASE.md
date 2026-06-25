@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-05-18 (timezone leak fix — deployed)
+> Last updated: 2026-06-25 (Installs & Payments tab — deployed)
 
 ---
 
@@ -38,7 +38,7 @@ Reverse-chronological. Each entry describes the user-visible behavior change.
 
 ### 2026-06-25 — Installs & Payments tab (Dallas, May 2026) + date-only render fix
 
-**Pending deploy.** Merge SHA + Vercel deployment id to be filled in once `vercel --prod` lands. PR: _to be linked_.
+**Deployed.** Merge commit `8ae0f37` on `main` (PR [#26](https://github.com/MakAnalyticsProjects/vera-mvp/pull/26)). Vercel deployment `dpl_CKw6QCgCrAviUreKzgfbjWbfGjVz`, aliased to <https://vera-mvp.vercel.app>. Post-deploy smoke: public `/` 200, `/dashboard/installs` 307→/login, `/api/installs` 401. Two additive migrations applied to `vera_prod` via `prisma migrate deploy`; 49 Dallas rows imported via `scripts/import-install-payments.ts` (`DATABASE_URL` set from `.env.prod`).
 
 A new **Installs & Payments** tab at `/dashboard/installs`, sourced from Israel's hand-kept regional Google Sheet (exported to CSV at `data/Dallas - Installs & Payments - May 2026.csv`) — **not** Rooflink. The sheet is the source of truth and the tab is read-only. One-time snapshot: 49 Dallas rows for May 2026, re-imported manually when the sheet changes.
 
