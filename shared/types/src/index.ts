@@ -255,5 +255,51 @@ export const WriteOffsFileSchema = z.object({
 });
 export type WriteOffsFile = z.infer<typeof WriteOffsFileSchema>;
 
+/* =============================================================================
+ * Installs & Payments — a manually-maintained regional ledger (NOT Rooflink).
+ * One row per install with up to four collected payments and a stated balance.
+ * Money fields are nullable: a few sheet cells are blank and are shown as
+ * entered, never recomputed.
+ * =========================================================================== */
+
+export const InstallPaymentRecordSchema = z.object({
+  id: z.number(),
+  region: z.string(),
+  sourcePeriod: z.string(),
+  sourceRow: z.number(),
+  salesRep: z.string(),
+  customerName: z.string(),
+  address: z.string(),
+  /** ISO date 'YYYY-MM-DD'. */
+  installDate: z.string(),
+  contractPrice: z.number().nullable(),
+  payment1: z.number().nullable(),
+  payment2: z.number().nullable(),
+  payment3: z.number().nullable(),
+  payment4: z.number().nullable(),
+  balanceOwed: z.number().nullable(),
+});
+export type InstallPaymentRecord = z.infer<typeof InstallPaymentRecordSchema>;
+
+export const InstallPaymentsFileSchema = z.object({
+  generatedAt: z.string(),
+  /** Single region when the snapshot is uniform, else 'Multiple'. */
+  region: z.string(),
+  /** Single 'YYYY-MM' when uniform, else 'Multiple'. */
+  sourcePeriod: z.string(),
+  /** "Last Reviewed" date label from the sheet annotation, e.g. "05/11". */
+  reviewedLabel: z.string().nullable(),
+  /** Clearing/deposit caveat from the sheet annotation. */
+  clearingNote: z.string().nullable(),
+  totals: z.object({
+    rowCount: z.number(),
+    totalContractPrice: z.number(),
+    totalCollected: z.number(),
+    totalBalanceOwed: z.number(),
+  }),
+  records: z.array(InstallPaymentRecordSchema),
+});
+export type InstallPaymentsFile = z.infer<typeof InstallPaymentsFileSchema>;
+
 export * from './audit';
 export * from './forms';
