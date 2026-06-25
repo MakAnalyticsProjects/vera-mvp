@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-06-25 (Installs & Payments default sort: most recent install first)
+> Last updated: 2026-06-25 (Installs & Payments date-range filter + UI polish)
 
 ---
 
@@ -35,6 +35,19 @@ manual deploy after every merge to `main`.
 ## Release log
 
 Reverse-chronological. Each entry describes the user-visible behavior change.
+
+### 2026-06-25 — Installs & Payments: date-range filter + filter-bar polish
+
+**Pending deploy.** Merge commit `336c59b` on `main` (PR [#28](https://github.com/MakAnalyticsProjects/vera-mvp/pull/28)). Adds a date-range filter to the Installs & Payments tab and polishes the filter bar. Frontend-only — no DB, schema, or migration change.
+
+What users will see:
+- **Period presets** (All / This month / Last 3 months) plus a **custom range** picked from a two-month calendar. Filtering keys off `installDate`; presets resolve against the browser's local date so "This month" stays correct over time and across shared URLs. Default view is unchanged (All).
+- The custom-range calendar renders the selection as a **seamless shadcn-style bar** (solid endpoint pills, continuous accent track through the middle, rounded week-edge ends) rather than notched per-day pills. Month-navigation arrows are borderless ghost icons, fully clickable and aligned to the Su/Sa grid columns.
+- Filter bar reorganized into **one control row**: period pills on the left, the existing **Filter** menu (Status / Rep) on the right, with the "Installs — N rows" count + sort caption beneath. Period pills restyled to match the Rep Leaderboard pills for cross-page coherence.
+
+All filter state lives in the URL (`range`, `from`, `to`, `status`, `reps`, `page`, `pageSize`) via nuqs, so filtered views are shareable. `installs.spec.ts` covers the four status partitions, custom-date windowing, two-click range stability, arrow clickability, and preset toggling (8 tests, all green).
+
+**Rollback:** revert merge commit `336c59b` on `main` and redeploy. No DB or data change to undo.
 
 ### 2026-06-25 — Installs & Payments: default sort by install date (most recent first)
 
