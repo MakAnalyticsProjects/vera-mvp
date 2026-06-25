@@ -36,6 +36,30 @@ manual deploy after every merge to `main`.
 
 Reverse-chronological. Each entry describes the user-visible behavior change.
 
+### 2026-06-25 — Installs & Payments tab (Dallas, May 2026) + date-only render fix
+
+**Pending deploy.** Merge SHA + Vercel deployment id to be filled in once `vercel --prod` lands. PR: _to be linked_.
+
+A new **Installs & Payments** tab at `/dashboard/installs`, sourced from Israel's hand-kept regional Google Sheet (exported to CSV at `data/Dallas - Installs & Payments - May 2026.csv`) — **not** Rooflink. The sheet is the source of truth and the tab is read-only. One-time snapshot: 49 Dallas rows for May 2026, re-imported manually when the sheet changes.
+
+What users will see:
+- A sortable table (customer/address, rep, install date, contract, collected, balance) with a detail drawer showing the payment-by-payment breakdown and source row.
+- **Balance Owed shown exactly as recorded in the sheet — never recomputed** from contract minus payments. Tooltips state this.
+- Four balance states with distinct styling: **outstanding** (red, bold), **overpaid · credit due** (slate-blue, bold), **settled** (neutral), **no balance recorded** (muted "—"). Status filter partitions on these.
+- Metric tiles: Installs, Contract value, Collected, Outstanding — totaled over the current filter, with tooltips disclosing that blank-contract rows contribute $0 and negative payments are included as entered.
+- A provenance line under the header surfacing the sheet's annotation: "Last reviewed 05/11 · Not yet cleared/deposited".
+
+Bundled fix — **date-only off-by-one**: `formatUSDate` parsed bare `YYYY-MM-DD` calendar dates as UTC midnight, so any viewer west of UTC (e.g. Dallas, Central) saw the day roll back by one (install date `05/02` rendered `05/01`). It hid because dev (IST) and CI (UTC) are at/ahead of UTC. The formatter now renders date-only values literally and only TZ-converts true timestamps. This also corrects the "Installed" date column on the aging / write-offs / milestones / follow-ups tabs for western viewers.
+
+DB changes (additive, no data loss):
+- New `InstallPayment` table — migration `20260625000000_add_install_payment`.
+- `reviewedLabel` / `clearingNote` columns — migration `20260625100000_add_install_payment_review_meta`.
+- One-time data import: 49 Dallas rows via `scripts/import-install-payments.ts` (idempotent upsert on `(tenantId, region, sourcePeriod, sourceRow)`).
+
+Test coverage: `tests/e2e/installs.spec.ts` (4 specs — header/tiles/provenance, earliest-install-first, detail sheet, four-state status filter). Full suite 162 passed, typecheck clean.
+
+Rollback: `git revert <merge-sha> && vercel --prod --yes` removes the tab and the date-fix. The `InstallPayment` table and its 49 rows are harmless once unreferenced — leave in place, or drop with `DROP TABLE "InstallPayment"` if a clean slate is wanted. No other table touched.
+
 ### 2026-05-18 — Timezone leak fix: dashboard dates in browser TZ, PDFs in tenant TZ
 
 **Deployed.** Merge commit `bff45f5` on `main` (PR [#25](https://github.com/adityauphade-mac/vera-mvp/pull/25)). Vercel deployment `dpl_8nJJRREuaE2A4RooGnjvyLAdSz37`, aliased to <https://vera-mvp.vercel.app>. Post-deploy smoke: public `/` 200, auth-gated dashboard routes 307→/login, auth-gated APIs 401. No 500s.

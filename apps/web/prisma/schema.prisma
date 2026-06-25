@@ -32,6 +32,7 @@ model Tenant {
   failureNotification FailureNotificationSetting?
   automationRules     AutomationRule[]
   pendingRuleSends    PendingRuleSend[]
+  installPayments     InstallPayment[]
 }
 
 model User {
@@ -293,6 +294,52 @@ model FailureNotificationSetting {
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+/// One install + its collected payments, ingested from a manually-maintained
+/// regional spreadsheet (e.g. "Dallas - Installs & Payments - May 2026").
+/// NOT sourced from Rooflink — this is Israel's own hand-kept ledger, shown
+/// read-only on the /dashboard/installs tab. The sheet is the source of truth;
+/// blank/inconsistent money cells are stored verbatim (nullable), never
+/// recomputed. See scripts/import-install-payments.ts for the importer.
+///
+/// `sourceRow` is the 1-based row position in the source sheet. The natural
+/// key (tenantId, region, sourcePeriod, sourceRow) makes re-imports idempotent
+/// without inventing a synthetic id the sheet doesn't have.
+model InstallPayment {
+  id           Int      @id @default(autoincrement())
+  tenantId     Int
+  /// Market this sheet covers, e.g. 'Dallas'. Lets future regions coexist.
+  region       String
+  /// Period the sheet covers, 'YYYY-MM', e.g. '2026-05'.
+  sourcePeriod String
+  /// 1-based row position in the source sheet (data rows only).
+  sourceRow    Int
+  /// Verbatim from the sheet; may contain two reps split by '/'.
+  salesRep     String
+  /// Verbatim; may carry '*'/'**' footnote markers from the sheet.
+  customerName String
+  /// Free-form "street, city" — not normalized, no Rooflink join key.
+  address      String
+  installDate  DateTime @db.Date
+  /// Money columns are nullable: a few sheet cells are blank. Stored as
+  /// entered (negatives allowed for refunds/overpayments); never recomputed.
+  contractPrice Decimal? @db.Decimal(12, 2)
+  payment1      Decimal? @db.Decimal(12, 2)
+  payment2      Decimal? @db.Decimal(12, 2)
+  payment3      Decimal? @db.Decimal(12, 2)
+  payment4      Decimal? @db.Decimal(12, 2)
+  balanceOwed   Decimal? @db.Decimal(12, 2)
+  /// Sheet-level provenance from the "Last Reviewed …" annotation row,
+  /// denormalized onto every row of a given (region, sourcePeriod).
+  reviewedLabel String?
+  clearingNote  String?
+  createdAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, region, sourcePeriod, sourceRow])
+  @@index([tenantId])
 }
 
 /// Rule the user authors under /dashboard/scheduler?tab=automation.

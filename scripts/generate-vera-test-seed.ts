@@ -31,10 +31,12 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import type { InstallPaymentSheetRow } from './parse-install-payments';
 
 const REPO_ROOT = resolve(__dirname, '..');
 const AR_FIXTURE = resolve(REPO_ROOT, 'tests/fixtures/generated.fixture.json');
 const WO_FIXTURE = resolve(REPO_ROOT, 'tests/fixtures/write-offs.fixture.json');
+const INSTALLS_FIXTURE = resolve(REPO_ROOT, 'tests/fixtures/install-payments.fixture.json');
 const OUT_FILE = resolve(REPO_ROOT, 'tests/fixtures/vera_test.sql');
 
 // Hardcoded so they match `DEFAULT_TEST_USER` in tests/e2e/_helpers/auth.ts.
@@ -111,6 +113,14 @@ interface WOFixture {
   scope: string;
   totals: Record<string, unknown>;
   records: WORecord[];
+}
+
+interface InstallsFixture {
+  region: string;
+  sourcePeriod: string;
+  reviewedLabel: string | null;
+  clearingNote: string | null;
+  rows: InstallPaymentSheetRow[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -256,6 +266,11 @@ function sqlJsonb(obj: unknown): string {
   return `'${json}'::jsonb`;
 }
 
+/** A numeric SQL literal, or NULL when absent. */
+function sqlNum(n: number | null | undefined): string {
+  return n == null ? 'NULL' : String(n);
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Main.
 // ─────────────────────────────────────────────────────────────────────────
@@ -265,6 +280,8 @@ function main(): void {
   const ar = JSON.parse(readFileSync(AR_FIXTURE, 'utf8')) as SlimFixture;
   console.log(`[seed] reading ${WO_FIXTURE}`);
   const wo = JSON.parse(readFileSync(WO_FIXTURE, 'utf8')) as WOFixture;
+  console.log(`[seed] reading ${INSTALLS_FIXTURE}`);
+  const installs = JSON.parse(readFileSync(INSTALLS_FIXTURE, 'utf8')) as InstallsFixture;
 
   // Index WO records by jobId — used when a slim AR job also has a write-off.
   const woByJobId = new Map<number, WORecord>();
@@ -312,7 +329,7 @@ function main(): void {
   lines.push(`-- Generated: ${new Date().toISOString()}`);
   lines.push(`-- Source AR fixture: tests/fixtures/generated.fixture.json (${ar.jobs.length} AR jobs)`);
   lines.push(`-- Source WO fixture: tests/fixtures/write-offs.fixture.json (${wo.records.length} WO records)`);
-  lines.push(`-- Produces: ${jobPayloads.length} RawRooflinkJob, ${lineItems.length} RawRooflinkLineItems`);
+  lines.push(`-- Produces: ${jobPayloads.length} RawRooflinkJob, ${lineItems.length} RawRooflinkLineItems, ${installs.rows.length} InstallPayment`);
   lines.push('');
   lines.push('BEGIN;');
   lines.push('');
@@ -331,6 +348,7 @@ function main(): void {
     'FailureNotificationSetting',
     'RawRooflinkLineItems',
     'RawRooflinkJob',
+    'InstallPayment',
     'BackfillRun',
     'BackfillSchedule',
     '"User"',
@@ -383,6 +401,17 @@ function main(): void {
   for (const li of lineItems) {
     lines.push(
       `INSERT INTO "RawRooflinkLineItems" ("estimateId", "dataVersion", payload, "fetchedAt") VALUES (${sqlString(String(li.estimateId))}, ${LINEITEMS_RUN_ID}, ${sqlJsonb(li.payload)}, '${wo.generatedAt}'::timestamp);`,
+    );
+  }
+  lines.push('');
+
+  // ── InstallPayment ───────────────────────────────────────────────────
+  // Standalone hand-kept sheet data (not Rooflink). id is left to SERIAL.
+  lines.push(`-- InstallPayment (${installs.rows.length} rows, region=${installs.region} period=${installs.sourcePeriod})`);
+  for (const row of installs.rows) {
+    lines.push(
+      `INSERT INTO "InstallPayment" ("tenantId", region, "sourcePeriod", "sourceRow", "salesRep", "customerName", address, "installDate", "contractPrice", payment1, payment2, payment3, payment4, "balanceOwed", "reviewedLabel", "clearingNote") VALUES (` +
+        `${TENANT_ID}, ${sqlString(installs.region)}, ${sqlString(installs.sourcePeriod)}, ${row.sourceRow}, ${sqlString(row.salesRep)}, ${sqlString(row.customerName)}, ${sqlString(row.address)}, ${sqlString(row.installDate)}::date, ${sqlNum(row.contractPrice)}, ${sqlNum(row.payment1)}, ${sqlNum(row.payment2)}, ${sqlNum(row.payment3)}, ${sqlNum(row.payment4)}, ${sqlNum(row.balanceOwed)}, ${sqlString(installs.reviewedLabel)}, ${sqlString(installs.clearingNote)});`,
     );
   }
   lines.push('');
