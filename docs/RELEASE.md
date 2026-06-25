@@ -38,7 +38,7 @@ Reverse-chronological. Each entry describes the user-visible behavior change.
 
 ### 2026-06-25 — Installs & Payments: date-range filter + filter-bar polish
 
-**Pending deploy.** Merge commit `336c59b` on `main` (PR [#28](https://github.com/MakAnalyticsProjects/vera-mvp/pull/28)). Adds a date-range filter to the Installs & Payments tab and polishes the filter bar. Frontend-only — no DB, schema, or migration change.
+**Deployed.** Merge commit `336c59b` on `main` (PR [#28](https://github.com/MakAnalyticsProjects/vera-mvp/pull/28)). Vercel deployment `dpl_9r8KehYkUHMi2mmUhsiHjZdTwRi5`, aliased to <https://vera-mvp.vercel.app>. Post-deploy smoke: public `/` 200, `/dashboard/installs` 307→/login, `/api/installs` 401. Adds a date-range filter to the Installs & Payments tab and polishes the filter bar. Frontend-only — no DB, schema, or migration change.
 
 What users will see:
 - **Period presets** (All / This month / Last 3 months) plus a **custom range** picked from a two-month calendar. Filtering keys off `installDate`; presets resolve against the browser's local date so "This month" stays correct over time and across shared URLs. Default view is unchanged (All).
