@@ -2,7 +2,7 @@
 
 What's been deployed to production, when, and what's pending.
 
-> Last updated: 2026-06-25 (Installs & Payments tab — deployed)
+> Last updated: 2026-06-25 (Installs & Payments default sort: most recent install first)
 
 ---
 
@@ -36,9 +36,15 @@ manual deploy after every merge to `main`.
 
 Reverse-chronological. Each entry describes the user-visible behavior change.
 
+### 2026-06-25 — Installs & Payments: default sort by install date (most recent first)
+
+**Deployed.** Merge commit `<pending>` on `main`. Israel asked for the Installs & Payments table to "sort by install dates." Changed the default order so the **most recent install shows first** (descending by `installDate`, ties broken by original sheet row order for stability). The table has no clickable/sortable column headers — none exist anywhere in the app — so this is a fixed default order, not interactive sorting. Single change in `apps/web/lib/install-payments-data.ts` (the `findMany` `orderBy`), feeding both the SSR page and the `/api/installs` route. Toolbar subtitle updated from "Earliest install first" to "Most recent install first." Playwright `installs.spec.ts` updated: the order assertion now expects Deanna McCorkle (2026-05-29) first; the detail-sheet test targets Jason Nault's row explicitly so it's independent of sort order. **Rollback:** revert the `orderBy` back to `[{ installDate: 'asc' }, { sourceRow: 'asc' }]` and redeploy. No DB or schema change.
+
 ### 2026-06-25 — Installs & Payments tab (Dallas, May 2026) + date-only render fix
 
 **Deployed.** Merge commit `8ae0f37` on `main` (PR [#26](https://github.com/MakAnalyticsProjects/vera-mvp/pull/26)). Vercel deployment `dpl_CKw6QCgCrAviUreKzgfbjWbfGjVz`, aliased to <https://vera-mvp.vercel.app>. Post-deploy smoke: public `/` 200, `/dashboard/installs` 307→/login, `/api/installs` 401. Two additive migrations applied to `vera_prod` via `prisma migrate deploy`; 49 Dallas rows imported via `scripts/import-install-payments.ts` (`DATABASE_URL` set from `.env.prod`).
+
+**Post-deploy fix — `permission denied for table InstallPayment` (Postgres 42501).** Authenticated `/dashboard/installs` rendered the shell then blanked the content (server-component throw caught by the error boundary). Root cause: the migration + import were run against `vera_prod` using `.env.prod`'s `DATABASE_URL`, which is the **`postgres`** superuser. That made `InstallPayment` owned by `postgres` with no grants to **`vera_app`** — the role the Vercel runtime actually connects as (it owns every other table). The app role had zero privileges on the new table. Fix (non-destructive DDL, no redeploy needed — takes effect on next request): `ALTER TABLE "InstallPayment" OWNER TO vera_app;` + `ALTER SEQUENCE "InstallPayment_id_seq" OWNER TO vera_app;`. Verified live: authenticated fetch returns 200 with the table data present. **Process note:** run prod migrations/imports as `vera_app`, not `postgres`, so new tables inherit the correct owner. Also flagged: `.env.prod` stores the `postgres` URL while runtime uses `vera_app` — the recovery copy has drifted from the actual Vercel runtime credential.
 
 A new **Installs & Payments** tab at `/dashboard/installs`, sourced from Israel's hand-kept regional Google Sheet (exported to CSV at `data/Dallas - Installs & Payments - May 2026.csv`) — **not** Rooflink. The sheet is the source of truth and the tab is read-only. One-time snapshot: 49 Dallas rows for May 2026, re-imported manually when the sheet changes.
 
