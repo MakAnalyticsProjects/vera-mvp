@@ -108,6 +108,63 @@ test.describe('Installs & Payments', () => {
     await expect(page.getByText(/No installs match the current filters/i)).toBeVisible();
   });
 
+  test('custom range stays open across both clicks (no premature close)', async ({ page }) => {
+    // Start from "All" (49 rows) so the two clicks are a fresh range. The
+    // calendar opens on the current month; clicking day-number buttons there
+    // exercises the real two-click flow.
+    await page.goto('/dashboard/installs');
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText(/Installs — 49 rows/)).toBeVisible();
+
+    // Click a day-number button inside the open popover calendar (first match is
+    // the leftmost/current month).
+    const clickDay = (day: number) =>
+      page.evaluate((d) => {
+        const wrap = document.querySelector('[data-radix-popper-content-wrapper]');
+        const btn = [...(wrap?.querySelectorAll('button') ?? [])].find(
+          (b) => b.textContent?.trim() === String(d) && !(b as HTMLButtonElement).disabled,
+        );
+        (btn as HTMLButtonElement | undefined)?.click();
+      }, day);
+
+    const popover = page.locator('[data-radix-popper-content-wrapper]');
+    await page.locator('[data-preset="custom"]').click();
+    await expect(popover).toBeVisible();
+
+    // The regression guard: the popover MUST survive the first click so the user
+    // can pick a second date. (The bug closed it after one click.)
+    await clickDay(10);
+    await expect(popover).toBeVisible();
+
+    // It also survives the second click — shadcn-style, it only dismisses on an
+    // outside click / Escape, never on its own.
+    await clickDay(20);
+    await expect(popover).toBeVisible();
+    // A complete range is now committed: the custom chip reads as active.
+    await expect(page.locator('[data-preset="custom"]')).toHaveAttribute('aria-pressed', 'true');
+
+    // Dismiss with Escape, then confirm the committed window actually filtered.
+    await page.keyboard.press('Escape');
+    await expect(popover).toBeHidden();
+  });
+
+  test('month-navigation arrows are clickable (not covered by the caption)', async ({ page }) => {
+    // Regression: the month caption was painted over the nav arrows and ate the
+    // click — only the arrow's top sliver was live. The popover opens on June +
+    // July (two-month view); clicking "next" once advances by a month to July +
+    // August. If the arrow is unclickable, August never appears.
+    await page.goto('/dashboard/installs?range=custom&from=2026-06-08&to=2026-06-22');
+    await page.waitForLoadState('networkidle');
+    const popover = page.locator('[data-radix-popper-content-wrapper]');
+    await page.locator('[data-preset="custom"]').click();
+    await expect(popover).toBeVisible();
+    await expect(popover.getByText('June 2026')).toBeVisible();
+    // nav holds [previous, next]; .last() is the forward arrow.
+    await popover.locator('nav button').last().click();
+    await expect(popover.getByText('August 2026')).toBeVisible();
+    await expect(popover.getByText('June 2026')).toBeHidden();
+  });
+
   test('quick-filter chips toggle the active preset', async ({ page }) => {
     await page.goto('/dashboard/installs');
     await page.waitForLoadState('networkidle');

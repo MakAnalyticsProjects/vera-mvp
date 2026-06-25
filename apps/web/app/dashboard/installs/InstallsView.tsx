@@ -13,7 +13,6 @@ import {
   resolveDateRange,
   TablePagination,
   type PageSize,
-  TableToolbar,
   VeraQuote,
 } from '@vera/ui';
 import { formatUSD } from '@vera/utils';
@@ -205,15 +204,11 @@ export function InstallsView({ file }: { file: InstallPaymentsFile }) {
       </section>
 
       <section className="space-y-3 vera-rise-delay-2">
-        <DateRangeFilter value={dateValue} onChange={handleDateChange} />
-        <TableToolbar
-          title={`Installs — ${filtered.length} ${filtered.length === 1 ? 'row' : 'rows'}`}
-          subtitle={
-            filterCount > 0
-              ? `${filterCount} ${filterCount === 1 ? 'filter' : 'filters'} applied`
-              : 'Most recent install first'
-          }
-        >
+        {/* One control row: period pills on the left, Filter on the right, so
+            both filter affordances read as a single bar. flex-wrap drops the
+            Filter button below the pills on narrow widths. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <DateRangeFilter value={dateValue} onChange={handleDateChange} />
           <FilterMenu
             groups={filterGroups}
             selected={{ reps: repFilter, status: statusFilter }}
@@ -223,7 +218,17 @@ export function InstallsView({ file }: { file: InstallPaymentsFile }) {
               setPage(1);
             }}
           />
-        </TableToolbar>
+        </div>
+        <div>
+          <h2 className="text-text-secondary text-sm tracking-[0.2em] uppercase">
+            Installs — {filtered.length} {filtered.length === 1 ? 'row' : 'rows'}
+          </h2>
+          <p className="text-text-muted mt-1 text-xs">
+            {filterCount > 0
+              ? `${filterCount} ${filterCount === 1 ? 'filter' : 'filters'} applied`
+              : 'Most recent install first'}
+          </p>
+        </div>
         {filtered.length === 0 ? (
           <Card>
             <p className="text-text-secondary">No installs match the current filters.</p>

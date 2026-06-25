@@ -78,11 +78,56 @@ const PRESETS: { key: Exclude<DateRangePreset, 'custom'>; label: string }[] = [
   { key: 'last3', label: 'Last 3 months' },
 ];
 
+// NOTE: these pills duplicate the active/inactive pill style of the Rep
+// Leaderboard's local `Chip` (apps/web/.../rep-leaderboard/RepLeaderboardView.tsx).
+// Kept in sync by hand for now; unify into a shared @vera/ui <Pill> primitive
+// later so the two surfaces can't drift.
 const chipBase =
-  'inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors';
-const chipOn = 'bg-accent border-transparent text-white';
+  'inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition-colors';
+const chipOn =
+  'bg-accent border-transparent text-white shadow-[0_2px_6px_-2px_rgba(200,133,78,0.4)]';
 const chipOff =
   'border-border text-text-secondary hover:border-accent/40 hover:bg-bg-base hover:text-text-primary';
+
+/**
+ * Range-mode calendar styling. The shared Calendar colours the selected *button*
+ * (rounded), which in a range shows a notch between every adjacent day. To get
+ * the seamless shadcn bar we instead paint a continuous light track on the day
+ * *cells* (they touch edge-to-edge) and reserve solid rounded pills for the two
+ * endpoints. Only the palette differs from shadcn. Single-select usages of
+ * Calendar are untouched — these overrides apply only here.
+ */
+const RANGE_CLASS_NAMES = {
+  // first:/last: round the row-wrap ends of the track (Sunday left, Saturday
+  // right) so each week's segment reads as a rounded bar, matching shadcn. The
+  // rounding is a no-op on cells with no track background.
+  day: 'relative h-9 w-9 p-0 text-center text-sm first:rounded-l-md last:rounded-r-md',
+  day_button: cn(
+    'h-9 w-9 rounded-md p-0 font-normal text-text-primary transition-colors',
+    'hover:bg-bg-base/70',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+  ),
+  // Neutralise the shared single-select rule; range colour comes from the
+  // start / middle / end modifiers below. The continuous light track is painted
+  // directly on each range cell (start/middle/end) — not via `:has([aria-selected])`,
+  // because react-day-picker v9 doesn't mark the in-between days aria-selected, so
+  // a `:has()` track would leave the middle cells blank. The cells touch edge to
+  // edge, so a shared `bg-accent/15` on all three reads as one seamless bar; only
+  // the two endpoints round their outer edge and carry the solid accent pill.
+  selected: '',
+  range_start: cn(
+    'rounded-l-md bg-accent/15',
+    '[&>button]:rounded-md [&>button]:bg-accent [&>button]:text-white [&>button]:hover:bg-accent',
+  ),
+  range_end: cn(
+    'rounded-r-md bg-accent/15',
+    '[&>button]:rounded-md [&>button]:bg-accent [&>button]:text-white [&>button]:hover:bg-accent',
+  ),
+  range_middle: cn(
+    'bg-accent/15',
+    '[&>button]:rounded-none [&>button]:bg-transparent [&>button]:text-text-primary [&>button]:hover:bg-accent/25',
+  ),
+};
 
 export function DateRangeFilter({
   value,
@@ -97,6 +142,18 @@ export function DateRangeFilter({
     value.preset === 'custom' && value.from
       ? { from: parseIso(value.from), to: value.to ? parseIso(value.to) : undefined }
       : undefined;
+
+  // Draft range the Calendar drives directly while the popover is open. Keeping
+  // it local lets react-day-picker hold the intermediate {from, to:undefined}
+  // state between the two clicks of a range — we only propagate to the parent
+  // (and close) once BOTH ends are chosen. Seeded from the committed value each
+  // time the popover opens so a re-open shows the current selection.
+  const [draft, setDraft] = useState<DateRange | undefined>(selectedRange);
+
+  const handleOpenChange = (next: boolean) => {
+    if (next) setDraft(selectedRange);
+    setOpen(next);
+  };
 
   const customLabel =
     value.preset === 'custom' && value.from
@@ -121,7 +178,7 @@ export function DateRangeFilter({
         );
       })}
 
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -137,21 +194,23 @@ export function DateRangeFilter({
           <Calendar
             mode="range"
             numberOfMonths={2}
-            selected={selectedRange}
-            defaultMonth={selectedRange?.from}
+            selected={draft}
+            defaultMonth={draft?.from}
+            classNames={RANGE_CLASS_NAMES}
             onSelect={(range?: DateRange) => {
-              if (!range?.from) {
-                onChange({ preset: 'all' });
-                return;
+              // The Calendar owns selection; we never auto-close (matches the
+              // shadcn date-range picker). The popover stays open across both
+              // clicks so the user can always pick a start then an end, and can
+              // re-adjust either end before dismissing by clicking away. We only
+              // push to the parent filter once a full range exists.
+              setDraft(range);
+              if (range?.from && range.to) {
+                onChange({
+                  preset: 'custom',
+                  from: format(range.from, ISO),
+                  to: format(range.to, ISO),
+                });
               }
-              onChange({
-                preset: 'custom',
-                from: format(range.from, ISO),
-                to: range.to ? format(range.to, ISO) : format(range.from, ISO),
-              });
-              // Close once both ends are chosen; keep open after the first click
-              // so the user can pick the end date.
-              if (range.to) setOpen(false);
             }}
           />
         </PopoverContent>
