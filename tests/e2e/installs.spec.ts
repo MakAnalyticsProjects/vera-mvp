@@ -4,7 +4,8 @@ import { signInAs } from './_helpers/auth';
 // Fixture: tests/fixtures/install-payments.fixture.json (Dallas, 2026-05, 49 rows).
 // Balance Owed partitions into: 26 outstanding (> 0), 11 overpaid (< 0, credit due),
 // 8 settled (≈ 0), 4 with no balance recorded. Sheet reviewed 05/11.
-// Earliest install is Jason Nault on 2026-05-02.
+// Default order is most recent install first; the newest is Deanna McCorkle on
+// 2026-05-29 and the earliest is Jason Nault on 2026-05-02.
 
 test.describe('Installs & Payments', () => {
   test.beforeEach(async ({ context }) => {
@@ -23,20 +24,24 @@ test.describe('Installs & Payments', () => {
     await expect(page.getByText(/Last reviewed 05\/11/i)).toBeVisible();
   });
 
-  test('table shows the earliest install first with US-formatted date', async ({ page }) => {
+  test('table shows the most recent install first with US-formatted date', async ({ page }) => {
     await page.goto('/dashboard/installs');
     await page.waitForLoadState('networkidle');
     const firstRow = page.locator('table tbody tr').first();
     await expect(firstRow).toBeVisible();
-    await expect(firstRow.locator('td').first()).toContainText('Jason Nault');
+    await expect(firstRow.locator('td').first()).toContainText('Deanna McCorkle');
     // Install date is rendered in a dedicated cell as MM/DD/YYYY.
-    await expect(firstRow).toContainText(/05\/02\/2026/);
+    await expect(firstRow).toContainText(/05\/29\/2026/);
   });
 
   test('clicking a row opens the InstallDetailSheet with payments + source', async ({ page }) => {
-    await page.goto('/dashboard/installs');
+    // Show all rows on one page (pageSize=50 > 49) so Jason Nault — now the
+    // oldest install under the most-recent-first default — is on the first page.
+    await page.goto('/dashboard/installs?pageSize=50');
     await page.waitForLoadState('networkidle');
-    await page.locator('table tbody tr').first().click();
+    // Target Jason Nault's row explicitly so the assertion is independent of the
+    // default sort order.
+    await page.locator('table tbody tr', { hasText: 'Jason Nault' }).first().click();
     const sheet = page.getByRole('dialog');
     await expect(sheet).toBeVisible();
     await expect(sheet.getByRole('heading', { name: /Payments received/i })).toBeVisible();

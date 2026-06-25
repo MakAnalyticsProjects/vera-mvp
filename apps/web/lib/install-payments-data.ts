@@ -31,7 +31,9 @@ function toNum(d: Prisma.Decimal | null): number | null {
 export async function getInstallPayments(tenantId: number): Promise<InstallPaymentsFile> {
   const rows = await db.installPayment.findMany({
     where: { tenantId },
-    orderBy: [{ installDate: 'asc' }, { sourceRow: 'asc' }],
+    // Default order: most recent install first. Within a single day, fall back
+    // to the original sheet row order for stability.
+    orderBy: [{ installDate: 'desc' }, { sourceRow: 'asc' }],
   });
 
   const records: InstallPaymentRecord[] = rows.map((r) => ({

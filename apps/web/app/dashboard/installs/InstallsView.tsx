@@ -183,7 +183,7 @@ export function InstallsView({ file }: { file: InstallPaymentsFile }) {
           subtitle={
             filterCount > 0
               ? `${filterCount} ${filterCount === 1 ? 'filter' : 'filters'} applied`
-              : 'Earliest install first'
+              : 'Most recent install first'
           }
         >
           <FilterMenu
